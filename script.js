@@ -1,5 +1,5 @@
 /* ==========================================
-   TURISMO CORRIENTES CAPITAL - LOGIC V6.1 (CON ARREGLO CLIMA)
+   TURISMO CORRIENTES CAPITAL - LOGIC V6.2 (RUTAS X CALLES)
    ========================================== */
 
 // 1. DATOS DE RESPALDO (Fallback)
@@ -286,7 +286,39 @@ window.leerDescripcion = function(texto) { if ('speechSynthesis' in window) { wi
 window.gestionarEstacionamiento = function() { const g = localStorage.getItem('mi_auto_ctes'); if (g) { if(confirm("¿Ir a tu vehículo guardado?")) { const p = JSON.parse(g); irRutaGPS(p.lat, p.lng); showToast("Calculando ruta..."); cerrarMenu(); } else { localStorage.removeItem('mi_auto_ctes'); if(parkingMarker) map.removeLayer(parkingMarker); guardarUbicacionActual(); } } else { guardarUbicacionActual(); } };
 function guardarUbicacionActual() { if (!userMarker) { showToast("Espera a tener señal GPS", "error"); return; } const ll = userMarker.getLatLng(); localStorage.setItem('mi_auto_ctes', JSON.stringify(ll)); dibujarAuto(ll); showToast("¡Estacionamiento guardado!", "success"); cerrarMenu(); }
 function dibujarAuto(ll) { if(parkingMarker) map.removeLayer(parkingMarker); const i = L.icon({iconUrl: 'https://cdn-icons-png.flaticon.com/512/3202/3202926.png', iconSize: [40, 40], iconAnchor: [20, 20]}); parkingMarker = L.marker(ll, {icon: i}).addTo(map).bindPopup("🚗 Tu vehículo está aquí"); }
-window.irRutaGPS = function(dLat, dLng) { if (!userMarker) { showToast("Esperando señal GPS...", "error"); return; } cerrarFicha(); cerrarMenu(); if (routingControl) map.removeControl(routingControl); showToast("Calculando ruta...", "info"); routingControl = L.Routing.control({ waypoints: [ L.latLng(userMarker.getLatLng()), L.latLng(dLat, dLng) ], language: 'es', routeWhileDragging: false, showAlternatives: false, createMarker: () => null, lineOptions: { styles: [{color: '#00897B', opacity: 0.8, weight: 6}] } }).addTo(map); let btn = document.getElementById('btn-cancelar-ruta'); if(!btn) { btn = document.createElement('button'); btn.id = 'btn-cancelar-ruta'; btn.innerHTML = '<i class="fas fa-times"></i> Cancelar Ruta'; btn.onclick = cancelarRuta; document.body.appendChild(btn); } btn.style.display = 'block'; };
+
+// --- FUNCION GPS CORREGIDA PARA SEGUIR CALLES (FOOT) ---
+window.irRutaGPS = function(dLat, dLng) { 
+    if (!userMarker) { showToast("Esperando señal GPS...", "error"); return; } 
+    cerrarFicha(); 
+    cerrarMenu(); 
+    if (routingControl) map.removeControl(routingControl); 
+    showToast("Calculando ruta a pie...", "info"); 
+    
+    routingControl = L.Routing.control({ 
+        waypoints: [ L.latLng(userMarker.getLatLng()), L.latLng(dLat, dLng) ], 
+        // AQUI ESTA LA MAGIA: Forzamos perfil 'foot' para que siga veredas/calles
+        router: new L.Routing.osrmv1({
+            language: 'es',
+            profile: 'foot' // Opciones: 'foot' (caminar), 'car' (auto), 'bike' (bici)
+        }),
+        routeWhileDragging: false, 
+        showAlternatives: false, 
+        createMarker: () => null, 
+        lineOptions: { styles: [{color: '#00897B', opacity: 0.9, weight: 6, dashArray: '1, 10'}] } // Estilo punteado moderno
+    }).addTo(map); 
+    
+    let btn = document.getElementById('btn-cancelar-ruta'); 
+    if(!btn) { 
+        btn = document.createElement('button'); 
+        btn.id = 'btn-cancelar-ruta'; 
+        btn.innerHTML = '<i class="fas fa-times"></i> Cancelar Ruta'; 
+        btn.onclick = cancelarRuta; 
+        document.body.appendChild(btn); 
+    } 
+    btn.style.display = 'block'; 
+};
+
 function cancelarRuta() { if (routingControl) { map.removeControl(routingControl); routingControl = null; } document.getElementById('btn-cancelar-ruta').style.display = 'none'; map.setView(userMarker.getLatLng(), 15); }
 window.compartirLugar = function(nombre) { const url = `${window.location.origin}${window.location.pathname}?lugar=${encodeURIComponent(nombre)}`; if (navigator.share) navigator.share({ title: 'Corrientes App', url: url }); else { navigator.clipboard.writeText(url); showToast("Link copiado"); } };
 function toggleFavorito(nombre) { if(favoritos.includes(nombre)) { favoritos = favoritos.filter(f => f !== nombre); showToast("Eliminado de favoritos"); } else { favoritos.push(nombre); showToast("¡Añadido!", "success"); } localStorage.setItem('favs_ctes', JSON.stringify(favoritos)); const activeChip = document.querySelector('.chip.active'); if(activeChip) filtrarMapa(activeChip.getAttribute('onclick').match(/'([^']+)'/)[1]); actualizarListas(lugaresCtes); }
@@ -355,7 +387,6 @@ function cargarTransporte() { const c = document.getElementById('contenedor-hora
 function cargarEventos() { document.getElementById('eventos-container').innerHTML = eventosCtes.map(ev => `<div class="evento-item"><div class="fecha-evento">${ev.fecha}</div><div style="padding-left:15px;"><strong style="color:var(--color-primario)">${ev.titulo}</strong><p style="margin:5px 0 0 0; font-size:0.85rem; color:var(--text-secondary)">${ev.desc}</p></div></div>`).join(''); abrirModal('modal-eventos'); }
 function showToast(m, t='info') { const d = document.createElement('div'); d.className = `toast ${t}`; d.innerHTML = m; document.getElementById('toast-container').appendChild(d); setTimeout(() => { d.style.opacity='0'; setTimeout(()=>d.remove(),300); }, 3000); }
 
-// --- FUNCION CLIMA CORREGIDA ---
 function fetchClima() {
     // Agregamos '&timezone=auto' para asegurar que la hora coincida con Corrientes
     const url = 'https://api.open-meteo.com/v1/forecast?latitude=-27.46&longitude=-58.83&current_weather=true&timezone=auto';
