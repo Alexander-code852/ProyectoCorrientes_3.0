@@ -1,6 +1,6 @@
 /* =========================================
    ESTILO PROFESIONAL - TURISMO CORRIENTES
-   RESPONSIVE & MULTI-DEVICE (V6.0 FINAL)
+   RESPONSIVE & MULTI-DEVICE (V6.1 GPU OPTIMIZED)
    ========================================= */
 
 :root {
@@ -40,7 +40,7 @@
     --z-chips: 900; 
     --z-sidebar: 1100; 
     --z-search: 1200; 
-    --z-ficha: 1200; /* Nueva capa para la ficha */
+    --z-ficha: 1200; 
     --z-modal: 2000; 
     --z-offline: 6000;
 }
@@ -122,16 +122,33 @@ html, body {
 .chip.active { background-color: var(--color-primario); color: white; box-shadow: var(--shadow-hover); }
 .chip.active i { color: white; }
 
-/* --- SIDEBAR (BARRA LATERAL) --- */
+/* --- SIDEBAR (BARRA LATERAL) - BASE STYLES --- */
 #sidebar {
-    position: absolute; top: 0; left: -100%;
+    position: absolute; 
+    top: 0; 
+    left: 0; /* Fijamos la posición base */
     width: 100%; max-width: 400px;
     height: 100vh; height: 100dvh;
-    background: var(--bg-sidebar); z-index: var(--z-sidebar); 
-    transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 5px 0 25px rgba(0,0,0,0.15); display: flex; flex-direction: column;
+    background: var(--bg-sidebar); 
+    z-index: var(--z-sidebar); 
+    box-shadow: 5px 0 25px rgba(0,0,0,0.15); 
+    display: flex; flex-direction: column;
+
+    /* OPTIMIZACIÓN GPU (Desktop por defecto) */
+    transform: translateX(-100%); /* Oculto a la izquierda */
+    will-change: transform; 
+    visibility: hidden; /* No renderizar cuando está cerrado */
+    
+    /* Transición: Animamos transform. Visibility tiene delay al cerrar */
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.4s;
 }
-#sidebar.activo { left: 0; }
+
+#sidebar.activo { 
+    transform: translateX(0); /* Mostrar */
+    visibility: visible;
+    /* Al abrir, visibility es inmediato (delay 0s) */
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0s;
+}
 
 .sidebar-header { background: var(--header-gradient); padding: 30px 25px 60px 25px; color: white; border-bottom-left-radius: 30px; border-bottom-right-radius: 30px; flex-shrink: 0; position: relative; }
 .titulo-row { display: flex; justify-content: space-between; align-items: flex-start; } 
@@ -296,10 +313,14 @@ html, body {
 
 /* PC / TABLET: Sidebar izquierda, Ficha flotante */
 @media (min-width: 769px) {
-    #sidebar { left: -400px; box-shadow: 2px 0 10px rgba(0,0,0,0.1); border-right: 1px solid var(--border-color); }
-    #sidebar.activo { left: 0; }
+    /* En PC, mantenemos la lógica base de translateX (definida arriba) */
+    /* Ajustamos el mapa y otros elementos al abrir */
+    
+    #sidebar { box-shadow: 2px 0 10px rgba(0,0,0,0.1); border-right: 1px solid var(--border-color); }
+    
     .leaflet-control-container .leaflet-top.leaflet-left { left: 0; transition: left 0.4s; }
     body:has(#sidebar.activo) .leaflet-control-container .leaflet-top.leaflet-left { left: 410px; }
+    
     .sidebar-content::-webkit-scrollbar { width: 8px; }
     .sidebar-content::-webkit-scrollbar-track { background: transparent; }
     .sidebar-content::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.2); border-radius: 20px; }
@@ -311,8 +332,34 @@ html, body {
 
 /* MOVIL: Sidebar Bottom Sheet, Ficha Bottom Sheet */
 @media (max-width: 768px) {
-    #sidebar { top: auto; bottom: -100%; left: 0; width: 100%; max-width: 100%; height: 85vh; border-radius: 25px 25px 0 0; transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1); box-shadow: 0 -5px 25px rgba(0,0,0,0.2); }
-    #sidebar.activo { bottom: 0; left: 0; }
+    #sidebar {
+        /* Reset de propiedades desktop */
+        top: auto;
+        
+        /* Posicionamiento Mobile */
+        bottom: 0; 
+        left: 0;
+        width: 100%;
+        max-width: 100%;
+        height: 85vh;
+        border-radius: 25px 25px 0 0;
+        
+        /* OPTIMIZACIÓN GPU MOBILE: */
+        /* Sobreescribimos translateX por translateY */
+        transform: translateY(100%); 
+        
+        /* Ajuste de curva de animación para sensación "Bottom Sheet" */
+        transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1), visibility 0s linear 0.4s;
+        
+        box-shadow: 0 -5px 25px rgba(0,0,0,0.2);
+    }
+
+    #sidebar.activo {
+        transform: translateY(0);
+        /* Mantenemos visibility visible con delay 0 */
+        transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1), visibility 0s linear 0s;
+    }
+    
     .sidebar-header::before { content: ''; display: block; width: 50px; height: 5px; background: rgba(255,255,255,0.4); margin: -15px auto 15px auto; border-radius: 10px; }
     
     #btn-cancelar-ruta { bottom: 20px; left: auto; right: 20px; transform: none; width: auto; }
