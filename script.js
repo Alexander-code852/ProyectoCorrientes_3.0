@@ -1,5 +1,6 @@
 /* ==========================================
-   TURISMO CORRIENTES CAPITAL - LOGIC V6.2 (RUTAS X CALLES)
+   TURISMO CORRIENTES CAPITAL - LOGIC V7
+   (GESTOS + AUDIO + RUTA FLOTANTE)
    ========================================== */
 
 // 1. DATOS DE RESPALDO (Fallback)
@@ -59,6 +60,7 @@ async function initApp() {
     configurarSplash(); 
     mostrarSkeletons();
     renderizarListaPaseos();
+    initGesturesFicha();
 
     window.addEventListener('offline', () => { document.getElementById('offline-indicator').style.display = 'block'; showToast("Sin conexión"); });
     window.addEventListener('online', () => { document.getElementById('offline-indicator').style.display = 'none'; showToast("Conectado", "success"); });
@@ -107,7 +109,6 @@ function initMap() {
     const isDark = document.body.classList.contains('dark-mode');
     updateMapTiles(isDark);
     
-    // Clusters Personalizados
     markers = L.markerClusterGroup({ 
         showCoverageOnHover: false, maxClusterRadius: 40,
         iconCreateFunction: function(cluster) {
@@ -122,7 +123,7 @@ function initMap() {
     
     map.on('click', function(e) { 
         if(modoCreacion) agregarPuntoRuta(e.latlng);
-        cerrarFicha(); // Cierra la ficha al tocar el mapa
+        cerrarFicha(); 
     });
 }
 
@@ -133,7 +134,6 @@ function updateMapTiles(isDark) {
     tileLayer = L.tileLayer(isDark ? urlDark : urlLight, { attribution: '© CartoDB', maxZoom: 20 }).addTo(map);
 }
 
-// FUNCION RENDERIZAR MARCADOES (SIN POPUPS, CON FICHA)
 function renderizarMarcadores(lista) {
     markers.clearLayers();
     lista.forEach(lugar => {
@@ -141,7 +141,6 @@ function renderizarMarcadores(lista) {
         let icon = L.icon({ iconUrl: urlIconos[tipo] || urlIconos.turismo, iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -30] });
         let m = L.marker([lugar.lat, lugar.lng], { icon: icon });
 
-        // Evento Click: Abre la Ficha en vez del Popup
         m.on('click', () => {
             mostrarFichaLugar(lugar);
             centrarEnMapa(lugar.lat, lugar.lng);
@@ -181,6 +180,8 @@ function mostrarFichaLugar(lugar) {
             </div>
             ${lugar.wp ? `<a href="https://wa.me/${lugar.wp}" target="_blank" style="display:block; margin-top:15px; text-align:center; color:#25D366; font-weight:bold; text-decoration:none;"><i class="fab fa-whatsapp"></i> WhatsApp</a>` : ''}
         </div>`;
+    
+    initGesturesFicha();
     ficha.classList.add('activa');
 }
 
@@ -250,12 +251,10 @@ function actualizarListas(lista) {
     });
 }
 
-// LOGICA CHECK-IN
 window.toggleVisitado = function(nombre) {
     if(visitados.includes(nombre)) { visitados = visitados.filter(v => v !== nombre); showToast("Marcado como pendiente"); } 
     else { visitados.push(nombre); showToast("¡Lugar visitado! 🎉", "success"); }
     localStorage.setItem('visitados_ctes', JSON.stringify(visitados));
-    // Actualizar botones (si existe en ficha)
     actualizarBotonCheckFicha(nombre);
 };
 
@@ -287,7 +286,7 @@ window.gestionarEstacionamiento = function() { const g = localStorage.getItem('m
 function guardarUbicacionActual() { if (!userMarker) { showToast("Espera a tener señal GPS", "error"); return; } const ll = userMarker.getLatLng(); localStorage.setItem('mi_auto_ctes', JSON.stringify(ll)); dibujarAuto(ll); showToast("¡Estacionamiento guardado!", "success"); cerrarMenu(); }
 function dibujarAuto(ll) { if(parkingMarker) map.removeLayer(parkingMarker); const i = L.icon({iconUrl: 'https://cdn-icons-png.flaticon.com/512/3202/3202926.png', iconSize: [40, 40], iconAnchor: [20, 20]}); parkingMarker = L.marker(ll, {icon: i}).addTo(map).bindPopup("🚗 Tu vehículo está aquí"); }
 
-// --- FUNCION GPS CORREGIDA PARA SEGUIR CALLES (FOOT) ---
+// --- FUNCION GPS MEJORADA (TARJETA FLOTANTE) ---
 window.irRutaGPS = function(dLat, dLng) { 
     if (!userMarker) { showToast("Esperando señal GPS...", "error"); return; } 
     cerrarFicha(); 
@@ -297,26 +296,41 @@ window.irRutaGPS = function(dLat, dLng) {
     
     routingControl = L.Routing.control({ 
         waypoints: [ L.latLng(userMarker.getLatLng()), L.latLng(dLat, dLng) ], 
-        // AQUI ESTA LA MAGIA: Forzamos perfil 'foot' para que siga veredas/calles
         router: new L.Routing.osrmv1({
             language: 'es',
-            profile: 'foot' // Opciones: 'foot' (caminar), 'car' (auto), 'bike' (bici)
+            profile: 'foot' 
         }),
         routeWhileDragging: false, 
+        // Importante: No mostrar alternativas para ahorrar espacio
         showAlternatives: false, 
+        containerClassName: 'ruta-flotante-container',
         createMarker: () => null, 
-        lineOptions: { styles: [{color: '#00897B', opacity: 0.9, weight: 6, dashArray: '1, 10'}] } // Estilo punteado moderno
+        lineOptions: { styles: [{color: '#00897B', opacity: 0.8, weight: 6}] } 
     }).addTo(map); 
+
+    // Colapsar detalles al inicio
+    routingControl.on('routesfound', function(e) {
+        setTimeout(() => {
+            const container = document.querySelector('.leaflet-routing-container');
+            if(container) {
+                const hint = document.createElement('div');
+                hint.innerHTML = '<i class="fas fa-chevron-up"></i> Ver detalles';
+                hint.style.textAlign = 'center'; hint.style.fontSize = '0.7rem';
+                hint.style.color = '#aaa'; hint.style.paddingBottom = '5px';
+                container.appendChild(hint);
+            }
+        }, 500);
+    });
     
     let btn = document.getElementById('btn-cancelar-ruta'); 
     if(!btn) { 
         btn = document.createElement('button'); 
         btn.id = 'btn-cancelar-ruta'; 
-        btn.innerHTML = '<i class="fas fa-times"></i> Cancelar Ruta'; 
+        btn.innerHTML = '<i class="fas fa-times"></i> Salir de Ruta'; 
         btn.onclick = cancelarRuta; 
         document.body.appendChild(btn); 
     } 
-    btn.style.display = 'block'; 
+    btn.style.display = 'flex'; 
 };
 
 function cancelarRuta() { if (routingControl) { map.removeControl(routingControl); routingControl = null; } document.getElementById('btn-cancelar-ruta').style.display = 'none'; map.setView(userMarker.getLatLng(), 15); }
@@ -337,7 +351,7 @@ function centrarEnMapa(lat, lng) {
 }
 
 /* ==========================================
-   NUEVA FUNCION GPS (VISUAL GOOGLE MAPS + SMART PARKING)
+   NUEVA FUNCION GPS (VISUAL GOOGLE MAPS + SMART PARKING + AUDIOGUIA)
    ========================================== */
 function iniciarGPS() {
     if(!navigator.geolocation) { showToast("Tu dispositivo no tiene GPS", "error"); return; }
@@ -357,18 +371,45 @@ function iniciarGPS() {
                 }).addTo(map); 
             } else { userMarker.setLatLng([lat, lng]); }
 
-            // LOGICA PROXIMIDAD AL AUTO
             const autoGuardado = localStorage.getItem('mi_auto_ctes');
             if(autoGuardado) {
                 const auto = JSON.parse(autoGuardado);
                 const distanciaAuto = calcularDistancia(lat, lng, auto.lat, auto.lng);
-                
                 if(distanciaAuto < 0.03) {
                     if(parkingMarker) map.removeLayer(parkingMarker);
                     localStorage.removeItem('mi_auto_ctes');
                     cancelarRuta();
                     showToast("¡Estás cerca de tu vehículo! 🚗", "success");
                     if(navigator.vibrate) navigator.vibrate([100, 50, 100]); 
+                }
+            }
+
+            // --- AUDIOGUÍA AUTOMÁTICA ---
+            if(lugaresCtes.length > 0) {
+                const lugarCercano = lugaresCtes.find(l => {
+                    const yaNotificado = sessionStorage.getItem(`notified_${l.nombre}`);
+                    if (l.tipo === 'turismo' && !yaNotificado) {
+                        const dist = calcularDistancia(lat, lng, l.lat, l.lng); 
+                        return dist < 0.08; // 80 metros
+                    }
+                    return false;
+                });
+
+                if (lugarCercano) {
+                    sessionStorage.setItem(`notified_${lugarCercano.nombre}`, 'true');
+                    const toast = document.createElement('div');
+                    toast.className = 'toast info';
+                    toast.innerHTML = `
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <i class="fas fa-headphones-alt"></i>
+                            <div><strong>${lugarCercano.nombre}</strong><br><span style="font-size:0.8rem">¿Escuchar historia?</span></div>
+                        </div>
+                        <button onclick="leerDescripcion('${lugarCercano.desc.replace(/'/g, "\\'")}')" style="margin-top:5px; background:white; color:#333; border:none; padding:5px 10px; border-radius:15px; font-weight:bold; cursor:pointer; width:100%;">Reproducir</button>
+                    `;
+                    toast.style.background = "linear-gradient(135deg, #6A1B9A, #4A148C)";
+                    document.getElementById('toast-container').appendChild(toast);
+                    if(navigator.vibrate) navigator.vibrate([50, 50, 50]);
+                    setTimeout(() => { toast.style.opacity='0'; setTimeout(()=>toast.remove(), 500); }, 10000);
                 }
             }
             actualizarListas(lugaresCtes);
@@ -388,9 +429,7 @@ function cargarEventos() { document.getElementById('eventos-container').innerHTM
 function showToast(m, t='info') { const d = document.createElement('div'); d.className = `toast ${t}`; d.innerHTML = m; document.getElementById('toast-container').appendChild(d); setTimeout(() => { d.style.opacity='0'; setTimeout(()=>d.remove(),300); }, 3000); }
 
 function fetchClima() {
-    // Agregamos '&timezone=auto' para asegurar que la hora coincida con Corrientes
     const url = 'https://api.open-meteo.com/v1/forecast?latitude=-27.46&longitude=-58.83&current_weather=true&timezone=auto';
-
     fetch(url)
         .then(response => {
             if (!response.ok) throw new Error('Error en la respuesta de API');
@@ -400,12 +439,7 @@ function fetchClima() {
             if (data && data.current_weather) {
                 const temperatura = Math.round(data.current_weather.temperature);
                 const widget = document.getElementById('clima-widget');
-                
-                if (widget) {
-                    widget.innerHTML = `<i class="fas fa-sun"></i> ${temperatura}°C`;
-                }
-            } else {
-                console.warn("Datos de clima incompletos");
+                if (widget) { widget.innerHTML = `<i class="fas fa-sun"></i> ${temperatura}°C`; }
             }
         })
         .catch(err => {
@@ -463,5 +497,41 @@ window.compartirWpSOS = function() {
     const mensaje = `¡Ayuda! Esta es mi ubicación actual: ${mapLink}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(mensaje)}`, '_blank');
 };
+
+/* ==========================================
+   LOGICA DE GESTOS (SWIPE) PARA FICHA
+   ========================================== */
+function initGesturesFicha() {
+    const ficha = document.getElementById('ficha-lugar');
+    if(!ficha) return;
+    const header = ficha.querySelector('.ficha-header'); 
+    if(!header) return;
+
+    let startY = 0;
+    let currentY = 0;
+
+    header.addEventListener('touchstart', (e) => {
+        startY = e.touches[0].clientY;
+        ficha.style.transition = 'none'; 
+    }, {passive: true});
+
+    header.addEventListener('touchmove', (e) => {
+        currentY = e.touches[0].clientY;
+        let delta = currentY - startY;
+        if(delta > 0) {
+            ficha.style.transform = `translateY(${delta}px)`;
+        }
+    }, {passive: true});
+
+    header.addEventListener('touchend', () => {
+        ficha.style.transition = 'transform 0.3s ease-out';
+        let delta = currentY - startY;
+        if (delta > 100) {
+            cerrarFicha();
+        } else {
+            ficha.style.transform = 'translateY(0)';
+        }
+    });
+}
 
 initApp();
