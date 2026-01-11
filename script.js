@@ -1,5 +1,5 @@
 /* ==========================================
-   TURISMO CORRIENTES CAPITAL - LOGIC V6.0 FINAL
+   TURISMO CORRIENTES CAPITAL - LOGIC V6.1 (CON ARREGLO CLIMA)
    ========================================== */
 
 // 1. DATOS DE RESPALDO (Fallback)
@@ -354,7 +354,36 @@ function iniciarGPS() {
 function cargarTransporte() { const c = document.getElementById('contenedor-horarios'); c.innerHTML = datosTransporte.map(e => `<div class="empresa-card"><div class="empresa-header"><h4>${e.empresa}</h4></div><div class="horarios-grid"><div><h5><i class="fas fa-arrow-right" style="color:#ff4757"></i> Ida</h5><div style="display:flex; gap:5px; flex-wrap:wrap;">${e.horarios.ida.map(h=>`<span class="time-badge">${h}</span>`).join('')}</div></div><div><h5><i class="fas fa-arrow-left" style="color:#25D366"></i> Vuelta</h5><div style="display:flex; gap:5px; flex-wrap:wrap;">${e.horarios.vuelta.map(h=>`<span class="time-badge">${h}</span>`).join('')}</div></div></div></div>`).join(''); abrirModal('modal-info'); }
 function cargarEventos() { document.getElementById('eventos-container').innerHTML = eventosCtes.map(ev => `<div class="evento-item"><div class="fecha-evento">${ev.fecha}</div><div style="padding-left:15px;"><strong style="color:var(--color-primario)">${ev.titulo}</strong><p style="margin:5px 0 0 0; font-size:0.85rem; color:var(--text-secondary)">${ev.desc}</p></div></div>`).join(''); abrirModal('modal-eventos'); }
 function showToast(m, t='info') { const d = document.createElement('div'); d.className = `toast ${t}`; d.innerHTML = m; document.getElementById('toast-container').appendChild(d); setTimeout(() => { d.style.opacity='0'; setTimeout(()=>d.remove(),300); }, 3000); }
-function fetchClima() { fetch('https://api.open-meteo.com/v1/forecast?latitude=-27.46&longitude=-58.83&current_weather=true').then(r=>r.json()).then(d=>document.getElementById('clima-widget').innerHTML = `<i class="fas fa-sun"></i> ${Math.round(d.current_weather.temperature)}°C`).catch(()=>{}); }
+
+// --- FUNCION CLIMA CORREGIDA ---
+function fetchClima() {
+    // Agregamos '&timezone=auto' para asegurar que la hora coincida con Corrientes
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=-27.46&longitude=-58.83&current_weather=true&timezone=auto';
+
+    fetch(url)
+        .then(response => {
+            if (!response.ok) throw new Error('Error en la respuesta de API');
+            return response.json();
+        })
+        .then(data => {
+            if (data && data.current_weather) {
+                const temperatura = Math.round(data.current_weather.temperature);
+                const widget = document.getElementById('clima-widget');
+                
+                if (widget) {
+                    widget.innerHTML = `<i class="fas fa-sun"></i> ${temperatura}°C`;
+                }
+            } else {
+                console.warn("Datos de clima incompletos");
+            }
+        })
+        .catch(err => {
+            console.error("Error cargando clima:", err);
+            const widget = document.getElementById('clima-widget');
+            if (widget) widget.innerHTML = `<i class="fas fa-cloud"></i> --`;
+        });
+}
+
 function alternarTema() { document.body.classList.toggle('dark-mode'); const isDark = document.body.classList.contains('dark-mode'); localStorage.setItem('theme', isDark ? 'dark' : 'light'); document.getElementById('theme-toggle').innerHTML = isDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>'; updateMapTiles(isDark); }
 function initTheme() { if(localStorage.getItem('theme')==='dark') { document.body.classList.add('dark-mode'); document.getElementById('theme-toggle').innerHTML='<i class="fas fa-sun"></i>'; } }
 function toggleAcordeon(id) { document.getElementById(id).classList.toggle('open'); }
