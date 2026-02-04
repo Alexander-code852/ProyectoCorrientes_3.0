@@ -1,749 +1,570 @@
 /* ==========================================
-   RUTA CORRENTINA - LÓGICA V65 (FIXED & LIFE)
+   RUTA CORRENTINA ULTIMATE - CORE V3.5 (FINAL)
+   Dev: Alejandro (TechFix)
    ========================================== */
 
-let map, markers, userMarker, routingControl, gpsWatchId;
-let allLugares = []; 
-let favoritos = JSON.parse(localStorage.getItem('favoritos_v1') || '[]');
-let visitados = JSON.parse(localStorage.getItem('visitados_v1') || '[]');
-window.sosDireccionCache = ""; 
-let currentTransportMode = 'car'; 
-let searchTimeout; // Para optimizar el buscador
+/* 1. IMPORTACIONES DE FIREBASE
+   Asegúrate de que firebase.js esté en la misma carpeta */
+import { 
+    db, auth, collection, doc, setDoc, getDoc, onAuthStateChanged, 
+    signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile 
+} from './firebase.js';
 
-let eventosCtes = []; 
-
-const iconosMap = {
-    'puente': 'https://cdn-icons-png.flaticon.com/128/2258/2258798.png',
-    'costa': 'https://cdn-icons-png.flaticon.com/128/2847/2847171.png',
-    'plaza': 'https://cdn-icons-png.flaticon.com/128/2316/2316680.png',
-    'museo': 'https://cdn-icons-png.flaticon.com/128/2007/2007558.png',
-    'iglesia': 'https://cdn-icons-png.flaticon.com/128/2165/2165089.png',
-    'religioso': 'https://cdn-icons-png.flaticon.com/128/2165/2165089.png',
-    'historico': 'https://cdn-icons-png.flaticon.com/128/2873/2873919.png',
-    'comida': 'https://cdn-icons-png.flaticon.com/128/3448/3448609.png',
-    'bar': 'https://cdn-icons-png.flaticon.com/128/931/931949.png',
-    'cafe': 'https://cdn-icons-png.flaticon.com/128/924/924514.png',
-    'restaurante': 'https://cdn-icons-png.flaticon.com/128/3448/3448609.png',
-    'hotel': 'https://cdn-icons-png.flaticon.com/128/3009/3009489.png',
-    'salud': 'https://cdn-icons-png.flaticon.com/128/3063/3063176.png',
-    'farmacia': 'https://cdn-icons-png.flaticon.com/128/883/883407.png',
-    'playa': 'https://cdn-icons-png.flaticon.com/128/2664/2664582.png',
-    'turismo': 'https://cdn-icons-png.flaticon.com/128/3203/3203071.png',
-    'default': 'https://cdn-icons-png.flaticon.com/128/149/149060.png'
+/* 2. CONFIGURACIÓN GENERAL */
+const CONFIG = {
+    radioCheckin: 500, // metros para dar OK al check-in
+    gpsOptions: { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
 };
 
-const categoriasUI = {
-    'turismo': ['turismo', 'plaza', 'costa', 'puente', 'museo', 'iglesia', 'historico', 'religioso', 'playa'],
-    'gastronomia': ['comida', 'bar', 'cafe', 'restaurante'],
-    'hospedaje': ['hotel', 'hostel', 'alojamiento'],
-    'servicios': ['salud', 'farmacia', 'banco', 'servicios', 'policia']
+/* 3. ESTADO DE LA APP (Memoria) */
+let state = {
+    map: null,
+    markersCluster: null,
+    userMarker: null,
+    routingControl: null,
+    userCoords: null,
+    currentPlace: null,
+    currentUser: null, // Aquí se guarda el usuario conectado
+    lugares: [],
+    cupones: [],
+    eventos: [],
+    visitados: JSON.parse(localStorage.getItem('visitados_ultimate') || '[]'),
+    badges: [
+        { id: 'novato', nombre: 'Turista Novato', icon: '🎒', req: 1, desc: 'Tu primer check-in.' },
+        { id: 'explorador', nombre: 'Explorador', icon: '🧭', req: 5, desc: 'Visitaste 5 lugares.' },
+        { id: 'experto', nombre: 'Guía Local', icon: '👑', req: 10, desc: 'Visitaste 10 lugares.' },
+        { id: 'techfix', nombre: 'TechFix Fan', icon: '📱', req: 0, special: true, desc: 'Usuario verificado.' }
+    ]
 };
 
-const circuitosData = {
-    'historico': [[-27.4697, -58.8313], [-27.4630, -58.8396], [-27.4627, -58.8387], [-27.4644, -58.8396]],
-    'costanera': [[-27.4605, -58.8288], [-27.4614, -58.8381], [-27.4771, -58.8551], [-27.4756, -58.8560]]
-};
-
-const datosTransporte = [
-    { empresa: "Chaco - Corrientes", horarios: { ida: ["Frecuencia 15'"], vuelta: ["24hs"] } },
-    { empresa: "Línea 104", horarios: { ida: ["05:00", "23:00"], vuelta: ["Circular"] } },
-    { empresa: "Línea 103", horarios: { ida: ["06:00", "00:00"], vuelta: ["Puerto"] } }
-];
-
-if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-    document.body.classList.add('dark-mode');
-}
+// INICIAR APP CUANDO CARGUE LA PÁGINA
+document.addEventListener('DOMContentLoaded', initApp);
 
 async function initApp() {
-    initMap(); // El mapa se inicia primero con la corrección del maxZoom
-    mostrarSkeleton(true); 
-    
-    if(document.body.classList.contains('dark-mode')) setTileLayer('dark');
-    
-    // Animación Splash
-    setTimeout(() => {
-        const s = document.getElementById('splash-screen');
-        if(s) { s.style.opacity = '0'; setTimeout(() => s.remove(), 500); }
-    }, 2000);
+    registerServiceWorker(); // PWA Offline
+    initMap();
+    initTheme();
+    setupNetworkStatus();
+    setupEventListeners();
 
-    try {
-        const response = await fetch('lugares.json');
-        const data = await response.json();
-        
-        if (data.lugares && Array.isArray(data.lugares)) {
-            allLugares = data.lugares;
+    // --- ESCUCHADOR DE SESIÓN (LOGIN/LOGOUT) ---
+    // Esto detecta automáticamente si el usuario entró o salió
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            // USUARIO CONECTADO
+            state.currentUser = user;
+            console.log("✅ Conectado:", user.email);
+            
+            // Ocultar login y mostrar perfil
+            document.getElementById('auth-container').style.display = 'none';
+            document.getElementById('user-profile-content').style.display = 'block';
+            
+            // Descargar sus datos de la nube
+            await cargarDatosUsuario(user);
         } else {
-            console.error("JSON no válido");
-            allLugares = [];
-        }
-        if (data.eventos && Array.isArray(data.eventos)) eventosCtes = data.eventos;
-        
-        renderizarMarcadores(allLugares);
-        actualizarListaFavoritos(); 
-        mostrarSkeleton(false);
-        checkDeepLink(); 
-    } catch (e) {
-        console.error("Error cargando JSON:", e);
-        mostrarSkeleton(false);
-        showToast("Modo Offline (Sin datos nuevos)", "info");
-    }
-
-    activarDeslizamiento(); 
-    iniciarGPS(false);
-    fetchClima();
-    
-    // Evita que el botón atrás cierre la app
-    window.addEventListener('popstate', handleBackButton);
-}
-
-// === FIX CRÍTICO: maxZoom agregado ===
-function initMap() {
-    map = L.map('map', { 
-        zoomControl: false,
-        maxZoom: 19 // <--- ESTO EVITA QUE SE CONGELE LA INTRO
-    }).setView([-27.469, -58.830], 14);
-    
-    setTileLayer('light'); // Cargamos capa base inmediatamente
-    
-    markers = L.markerClusterGroup({ 
-        showCoverageOnHover: false, 
-        maxClusterRadius: 40,
-        iconCreateFunction: function(cluster) {
-            const count = cluster.getChildCount();
-            return L.divIcon({
-                html: `<div class="cluster-custom"><span>${count}</span></div>`,
-                className: 'custom-cluster-icon',
-                iconSize: [40, 40]
-            });
+            // USUARIO DESCONECTADO
+            state.currentUser = null;
+            
+            // Mostrar login y ocultar perfil
+            document.getElementById('auth-container').style.display = 'flex'; // Flex para centrar
+            document.getElementById('user-profile-content').style.display = 'none';
         }
     });
+
+    // Cargar Lugares desde el archivo JSON
+    try {
+        const resp = await fetch('lugares.json');
+        const data = await resp.json();
+        
+        // Pequeño delay para asegurar que el mapa cargó
+        setTimeout(() => {
+            state.lugares = data.lugares || [];
+            state.cupones = data.cupones_disponibles || [];
+            state.eventos = data.eventos || [];
+            
+            renderMarkers(state.lugares);
+            renderFeed(state.lugares);
+            renderEventBanner();
+            updateStats();
+            initWeather();
+        }, 500);
+        
+    } catch (e) {
+        console.warn('⚠️ Error cargando JSON o modo offline');
+        showToast("Estás navegando sin conexión");
+    }
+
+    iniciarGPS();
     
-    map.addLayer(markers);
-    map.on('click', () => { cerrarFicha(); toggleMenuSheet('cerrar'); });
+    // Manejo del botón "Atrás" del celular
+    window.addEventListener('popstate', (event) => {
+        if (document.getElementById('ficha-lugar').classList.contains('open')) {
+            cerrarFicha(false);
+            return;
+        }
+        if (event.state && event.state.view) {
+            cambiarTab(event.state.view, false);
+        }
+    });
+    window.history.replaceState({ view: 'map' }, '');
 }
 
-function setTileLayer(mode) {
-    map.eachLayer((layer) => { if(layer._url) map.removeLayer(layer); });
-    let url = mode === 'dark' 
+// --- PWA SERVICE WORKER ---
+function registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js')
+            .then(() => console.log('Service Worker OK'))
+            .catch(err => console.error('Error SW:', err));
+    }
+}
+
+/* ==========================================
+   GESTIÓN DE USUARIOS (AUTH & FIRESTORE)
+   ========================================== */
+
+let isRegisterMode = false; // ¿Está en modo registro?
+
+// 1. Cambiar visualmente entre "Iniciar Sesión" y "Crear Cuenta"
+window.toggleAuthMode = () => {
+    isRegisterMode = !isRegisterMode;
+    
+    const title = document.getElementById('auth-title');
+    const subtitle = document.getElementById('auth-subtitle');
+    const btnSubmit = document.getElementById('btn-submit');
+    const toggleText = document.getElementById('toggle-text');
+    const btnToggle = document.getElementById('btn-toggle');
+
+    if (isRegisterMode) {
+        // MODO REGISTRO
+        title.innerText = "Crear Cuenta";
+        subtitle.innerText = "Únete a Ruta Correntina gratis.";
+        btnSubmit.innerText = "Registrarse";
+        btnSubmit.style.background = "#34C759"; // Verde
+        toggleText.innerText = "¿Ya tienes cuenta?";
+        btnToggle.innerText = "Volver a Iniciar Sesión";
+    } else {
+        // MODO LOGIN
+        title.innerText = "Bienvenido";
+        subtitle.innerText = "Inicia sesión para continuar.";
+        btnSubmit.innerText = "Iniciar Sesión";
+        btnSubmit.style.background = "#007AFF"; // Azul
+        toggleText.innerText = "¿Es tu primera vez aquí?";
+        btnToggle.innerText = "Crear una cuenta nueva";
+    }
+};
+
+// 2. Manejar el envío del formulario
+window.handleSubmit = (e) => {
+    e.preventDefault();
+    if (isRegisterMode) {
+        ejecutarRegistro();
+    } else {
+        ejecutarLogin();
+    }
+};
+
+// 3. Ejecutar Login
+async function ejecutarLogin() {
+    const email = document.getElementById('email-input').value;
+    const pass = document.getElementById('pass-input').value;
+
+    try {
+        await signInWithEmailAndPassword(auth, email, pass);
+        showToast("¡Bienvenido de nuevo!");
+    } catch (error) {
+        showToast("Error: " + error.message);
+    }
+}
+
+// 4. Ejecutar Registro
+async function ejecutarRegistro() {
+    const email = document.getElementById('email-input').value;
+    const pass = document.getElementById('pass-input').value;
+
+    if (!email || !pass) { alert("Completa todos los campos."); return; }
+    if (pass.length < 6) { alert("La contraseña debe tener 6 caracteres o más."); return; }
+
+    try {
+        // Crear usuario en Auth
+        const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+        const user = userCredential.user;
+        
+        // Preguntar nombre
+        const nombre = prompt("¡Cuenta creada! ¿Cómo quieres llamarte?", "Viajero");
+        await updateProfile(user, { displayName: nombre });
+
+        // Crear ficha en base de datos (Firestore)
+        await setDoc(doc(db, "users", user.uid), {
+            email: email,
+            nombre: nombre,
+            visitados: [],
+            xp: 0,
+            nivel: 1
+        });
+
+        showToast("¡Todo listo! Bienvenido.");
+    } catch (error) {
+        alert("Error al registrar: " + error.message);
+    }
+}
+
+// 5. Cargar datos del usuario desde la nube
+async function cargarDatosUsuario(user) {
+    try {
+        const docRef = doc(db, "users", user.uid);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            
+            // Mezclar datos: Si hay datos en la nube, los usamos
+            state.visitados = data.visitados || [];
+            
+            // Actualizar interfaz del perfil
+            const nameEl = document.getElementById('user-name');
+            const avEl = document.getElementById('user-avatar');
+            
+            if(nameEl) nameEl.innerText = data.nombre || user.displayName || 'Viajero';
+            if(avEl) avEl.src = `https://ui-avatars.com/api/?name=${data.nombre || 'User'}&background=007AFF&color=fff`;
+            
+            updateStats();
+        }
+    } catch (e) {
+        console.error("Error cargando perfil:", e);
+    }
+}
+
+// 6. Cerrar Sesión
+window.cerrarSesion = () => {
+    signOut(auth).then(() => {
+        showToast("Sesión cerrada.");
+        state.visitados = []; // Limpiar memoria local
+        updateStats();
+        setTimeout(() => window.location.reload(), 500); // Recargar para limpiar todo
+    });
+};
+
+/* ==========================================
+   FUNCIONES DEL MAPA Y NAVEGACIÓN
+   ========================================== */
+
+function initMap() {
+    state.map = L.map('map', { zoomControl: false, attributionControl: false }).setView([-27.469, -58.830], 14);
+    updateMapTiles();
+    
+    state.markersCluster = L.markerClusterGroup({ 
+        showCoverageOnHover: false, maxClusterRadius: 40, animate: true 
+    });
+    state.map.addLayer(state.markersCluster);
+}
+
+function updateMapTiles() {
+    const isDark = document.body.classList.contains('dark-mode');
+    const url = isDark 
         ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
         : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-    L.tileLayer(url, { attribution: '© CartoDB', maxZoom: 19 }).addTo(map);
+    state.map.eachLayer(l => { if(l instanceof L.TileLayer) state.map.removeLayer(l); });
+    L.tileLayer(url, { maxZoom: 19 }).addTo(state.map);
 }
 
-// === FUNCIONES FALTANTES AGREGADAS ===
-
-function handleBackButton(event) {
-    // Si hay ficha abierta, la cerramos
-    const ficha = document.getElementById('ficha-lugar');
-    if (ficha && ficha.classList.contains('activa')) {
-        cerrarFicha();
-        return;
-    }
-    // Si hay modales, los cerramos
-    const modales = document.querySelectorAll('.modal');
-    let algunModalAbierto = false;
-    modales.forEach(m => {
-        if(m.style.display === 'block') { m.style.display = 'none'; algunModalAbierto = true; }
-    });
-    if(algunModalAbierto) return;
-
-    // Si el menú está abierto, lo bajamos
-    const sheet = document.getElementById('bottom-sheet');
-    if (sheet && sheet.classList.contains('abierto')) {
-        toggleMenuSheet('cerrar');
-    }
+// Filtro con espera (Debounce) para que no se trabe al escribir
+let timeoutBusqueda;
+window.filtrarInput = (val) => {
+    clearTimeout(timeoutBusqueda);
+    timeoutBusqueda = setTimeout(() => ejecutarFiltro(val), 300);
 }
 
-function checkDeepLink() {
-    const params = new URLSearchParams(window.location.search);
-    const lugarParam = params.get('lugar');
-    if (lugarParam && allLugares.length > 0) {
-        const lugarEncontrado = allLugares.find(l => l.nombre === lugarParam);
-        if (lugarEncontrado) {
-            setTimeout(() => {
-                mostrarFicha(lugarEncontrado);
-                map.setView([lugarEncontrado.lat, lugarEncontrado.lng], 16);
-            }, 1000);
-        }
-    }
-}
-
-function actualizarListaFavoritos() {
-    const ul = document.getElementById('lista-favoritos-panel');
-    if (!ul) return;
-    ul.innerHTML = '';
-    const favItems = allLugares.filter(l => favoritos.includes(l.nombre));
+// Filtro rápido por botones
+window.filtrarBoton = (categoria, boton) => {
+    // Cambiar estilo de botones
+    document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+    if(boton) boton.classList.add('active');
     
-    if (favItems.length === 0) {
-        ul.innerHTML = '<li style="padding:15px; color:var(--text-sec); text-align:center;">Aún no tienes favoritos</li>';
-        return;
-    }
-
-    favItems.forEach(l => {
-        const li = document.createElement('li');
-        li.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-weight:500">${l.nombre}</span>
-                <i class="fas fa-heart" style="color:#FF2D55;"></i>
-            </div>`;
-        li.onclick = () => { 
-            map.flyTo([l.lat, l.lng], 17); 
-            mostrarFicha(l); 
-            toggleMenuSheet('cerrar'); 
-        };
-        ul.appendChild(li);
-    });
+    ejecutarFiltro(categoria);
 }
 
-// === LOGICA PRINCIPAL ===
+function ejecutarFiltro(criterio) {
+    const txt = criterio.toLowerCase();
+    
+    const res = state.lugares.filter(l => 
+        txt === 'todos' || 
+        (l.categoria && l.categoria.toLowerCase().includes(txt)) || 
+        l.nombre.toLowerCase().includes(txt) ||
+        (l.tags && l.tags.some(tag => tag.includes(txt)))
+    );
+    
+    renderMarkers(res);
+    
+    if(document.getElementById('view-list').style.display !== 'none') {
+        renderFeed(res);
+    }
 
-function getDistancia(lat1, lon1, lat2, lon2) {
-    const R = 6371; 
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c; 
+    if (res.length > 0 && txt !== 'todos' && txt !== '') {
+        const grupo = L.featureGroup(res.map(l => L.marker([l.lat, l.lng])));
+        setTimeout(() => state.map.flyToBounds(grupo.getBounds().pad(0.2), { duration: 1.5 }), 50);
+    } else if (txt === 'todos') {
+        state.map.flyTo([-27.469, -58.830], 14);
+    }
 }
 
-window.ordenarPorCercania = function() {
-    if (!userMarker) {
-        showToast("⚠️ Activa el GPS para ordenar");
-        iniciarGPS(true);
-        return;
+// --- CHECK-IN Y GPS ---
+
+window.triggerCheckIn = () => {
+    const btn = document.getElementById('btn-checkin-dynamic');
+    if(btn.classList.contains('visited-state')) return;
+    
+    // Vibración
+    if(navigator.vibrate) navigator.vibrate(15);
+    
+    if(btn.classList.contains('enabled')) { 
+        document.getElementById('foto-checkin').click(); 
+    } else { 
+        showToast("Estás demasiado lejos."); 
     }
-    const { lat: userLat, lng: userLng } = userMarker.getLatLng();
-    allLugares.forEach(l => { l.distancia = getDistancia(userLat, userLng, l.lat, l.lng); });
-    
-    const lugaresOrdenados = [...allLugares].sort((a, b) => a.distancia - b.distancia);
-    renderizarMarcadores(lugaresOrdenados);
-    toggleMenuSheet('abrir');
-    showToast("📍 Lugares ordenados por cercanía");
-    
-    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-    const chips = document.querySelectorAll('.chip');
-    chips.forEach(c => { if(c.innerText.includes("Cercanos")) c.classList.add('active'); });
 };
 
-function normalizeText(text) {
-    return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+window.procesarFotoCheckin = (input) => {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) { confirmarCheckIn(e.target.result); }
+        reader.readAsDataURL(input.files[0]);
+    }
+};
+
+async function confirmarCheckIn(fotoBase64) {
+    if(!state.currentPlace) return;
+    
+    const nuevoCheckin = { 
+        nombre: state.currentPlace.nombre, 
+        date: new Date().toISOString(), 
+        foto: fotoBase64 
+    };
+    
+    // Guardar en memoria local
+    state.visitados.push(nuevoCheckin);
+    
+    // Guardar en NUBE (si está conectado)
+    if (state.currentUser) {
+        try {
+            const userRef = doc(db, "users", state.currentUser.uid);
+            await setDoc(userRef, { visitados: state.visitados }, { merge: true });
+        } catch (err) {
+            console.error("Error guardando en nube:", err);
+        }
+    }
+
+    showToast(`🎉 ¡+50 XP! Visitaste ${state.currentPlace.nombre}`);
+    actualizarBotonCheckin();
+    updateStats();
 }
 
-// Buscador con espera (Debounce)
-window.filtrarPorBusqueda = () => { 
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => {
-        let txt = normalizeText(document.getElementById('buscador-input').value);
-        if(txt.length === 0) { renderizarMarcadores(allLugares); return; }
-        
-        const encontrados = allLugares.filter(l => {
-            const nombre = normalizeText(l.nombre);
-            const tipo = normalizeText(l.tipo || "");
-            const desc = normalizeText(l.desc || "");
-            return nombre.includes(txt) || tipo.includes(txt) || desc.includes(txt);
-        });
-        renderizarMarcadores(encontrados); 
-    }, 300);
-}
-
-function renderizarMarcadores(lista) {
-    markers.clearLayers();
+function actualizarBotonCheckin() {
+    const btn = document.getElementById('btn-checkin-dynamic');
+    if(!btn || !state.currentPlace || !state.userCoords) return;
     
-    ['favoritos-panel', 'turismo', 'gastronomia', 'hospedaje', 'servicios'].forEach(c => {
-        const ul = document.getElementById(`lista-${c}`);
-        if(ul && c !== 'favoritos-panel') ul.innerHTML = '';
-    });
-
-    const emptyMsg = document.getElementById('empty-state-msg');
-    const listContainer = document.getElementById('lista-principal-container');
+    const visitado = state.visitados.find(v => v.nombre === state.currentPlace.nombre);
     
-    if (!lista || lista.length === 0) {
-        if(emptyMsg) emptyMsg.style.display = 'block';
-        if(listContainer) listContainer.style.display = 'none';
+    if (visitado) {
+        btn.className = "btn-checkin-big visited-state";
+        btn.style.background = 'var(--success-grad)';
+        btn.innerHTML = `<i class="fas fa-check-circle"></i> VISITADO`;
         return;
+    }
+    
+    const dist = getDistance(state.userCoords.lat, state.userCoords.lng, state.currentPlace.lat, state.currentPlace.lng);
+    
+    if (dist <= CONFIG.radioCheckin) {
+        btn.className = "btn-checkin-big enabled photo-mode";
+        btn.innerHTML = `📸 FOTO CHECK-IN`;
     } else {
-        if(emptyMsg) emptyMsg.style.display = 'none';
-        if(listContainer) listContainer.style.display = 'block';
+        btn.className = "btn-checkin-big disabled";
+        btn.style.background = 'rgba(142, 142, 147, 0.15)';
+        btn.innerHTML = `🚶 ACÉRCATE (${Math.round(dist)}m)`;
     }
+}
 
+// --- RENDERIZADO Y UI ---
+
+function renderMarkers(lista) {
+    state.markersCluster.clearLayers();
     lista.forEach(l => {
-        if (!l.lat || !l.lng) return;
-        let tipoClean = l.tipo ? l.tipo.toLowerCase() : 'default';
-        let iconUrl = iconosMap[tipoClean] || iconosMap.default;
-        
-        let classMarker = 'custom-marker';
-        if (l.destacado) classMarker += ' marker-destacado';
-
-        let icon = L.icon({ iconUrl: iconUrl, iconSize: [36, 36], iconAnchor: [18, 36], popupAnchor: [0, -30], className: classMarker });
-        let m = L.marker([l.lat, l.lng], { icon: icon });
-        m.on('click', () => { mostrarFicha(l); map.flyTo([l.lat, l.lng], 16); toggleMenuSheet('cerrar'); });
-        markers.addLayer(m);
-
-        let catDestino = 'cat-turismo';
-        for (const [catUI, tiposAdmitidos] of Object.entries(categoriasUI)) {
-            if (tiposAdmitidos.includes(tipoClean)) { catDestino = `lista-${catUI}`; break; }
-        }
-        
-        const ul = document.getElementById(catDestino);
-        if(ul) {
-            const li = document.createElement('li');
-            if(l.destacado) li.classList.add('item-destacado');
-            let distHtml = l.distancia ? `<span style="font-size:0.7rem; background:rgba(0,0,0,0.1); padding:2px 5px; border-radius:4px; margin-left:5px;">${l.distancia.toFixed(1)} km</span>` : '';
-            
-            li.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center;">
-                              <span style="font-weight:500">${l.nombre} ${l.destacado ? '⭐' : ''}</span>
-                              <div>${distHtml} <small style="color:var(--text-sec); font-size:0.75rem">${l.tipo}</small></div>
-                            </div>`;
-            li.onclick = () => { map.flyTo([l.lat, l.lng], 17); mostrarFicha(l); toggleMenuSheet('cerrar'); };
-            ul.appendChild(li);
-        }
+        const catClass = l.categoria ? l.categoria.toLowerCase() : 'default';
+        const icon = L.divIcon({ className: 'custom-pin', html: `<div class="pin-head ${catClass}"><i class="fas ${getCatIcon(l.categoria)}"></i></div><div class="pin-point" style="border-top-color: white"></div>`, iconSize: [40, 50], iconAnchor: [20, 50] });
+        const m = L.marker([l.lat, l.lng], { icon: icon });
+        m.on('click', () => abrirFicha(l));
+        state.markersCluster.addLayer(m);
     });
-    if(lista === allLugares) actualizarListaFavoritos();
 }
 
-window.checkInLugar = function(nombre) {
-    if(!visitados.includes(nombre)) {
-        visitados.push(nombre);
-        localStorage.setItem('visitados_v1', JSON.stringify(visitados));
-        showToast(`¡Check-in en ${nombre}! ✅`);
-        
-        if(visitados.length === 1) showToast("🏅 Logro desbloqueado: Primeros Pasos");
-        if(visitados.length === 5) showToast("🏅 Logro desbloqueado: Explorador");
-        
-        const btn = document.getElementById('btn-checkin');
-        if(btn) {
-            btn.innerHTML = '<i class="fas fa-check-circle"></i> Visitado';
-            btn.style.background = '#30D158';
-            btn.style.color = '#fff';
-            btn.disabled = true;
-        }
-    }
-};
-
-window.abrirLogros = function() {
-    abrirModal('modal-logros');
-    const container = document.getElementById('logros-container');
-    const n = visitados.length;
-    const medallas = [
-        { min: 1, titulo: "Turista", icon: "fa-suitcase", color: "#FF9500" },
-        { min: 3, titulo: "Caminante", icon: "fa-hiking", color: "#30D158" },
-        { min: 5, titulo: "Explorador", icon: "fa-compass", color: "#007AFF" },
-        { min: 10, titulo: "Experto", icon: "fa-crown", color: "#AF52DE" }
-    ];
-    container.innerHTML = '';
-    medallas.forEach(m => {
-        const ganado = n >= m.min;
-        const opacity = ganado ? '1' : '0.3';
-        const status = ganado ? '¡Ganado!' : `${n}/${m.min}`;
-        const filtro = ganado ? '' : 'grayscale(100%)';
-        container.innerHTML += `
-            <div style="background:var(--bg-input); padding:15px; border-radius:15px; opacity:${opacity}; filter:${filtro}; display:flex; flex-direction:column; align-items:center;">
-                <i class="fas ${m.icon}" style="font-size:2rem; color:${m.color}; margin-bottom:10px;"></i>
-                <strong style="font-size:0.9rem;">${m.titulo}</strong>
-                <span style="font-size:0.75rem; color:var(--text-sec);">${status}</span>
-            </div>`;
-    });
-};
-
-function mostrarFicha(l) {
-    const f = document.getElementById('ficha-lugar');
-    const sheet = document.getElementById('bottom-sheet');
-    const fabControls = document.querySelector('.floating-controls');
-
-    if(sheet) sheet.classList.add('oculto-total');
-    if(fabControls) fabControls.classList.add('oculto-en-ruta');
-
-    let imagenHTML = '';
-    let margenExtra = '65px'; 
-    if(l.img) {
-        margenExtra = '10px';
-        imagenHTML = `<div class="img-skeleton-container"><img src="${l.img}" class="ficha-img" onload="this.classList.add('loaded')" onerror="this.parentElement.style.display='none'"></div>`;
-    }
-
-    const descHTML = l.desc || 'Sin descripción disponible.';
-    const textoTTS = (l.desc || "").replace(/'/g, "\\'").replace(/"/g, '\\"');
-    
-    const wpBtn = l.wp ? `<a href="https://wa.me/${l.wp}" target="_blank" class="btn-primary btn-whatsapp-pro"><i class="fab fa-whatsapp"></i> Enviar mensaje</a>` : '';
-    const gmapsBtn = `<a href="https://www.google.com/maps/dir/?api=1&destination=${l.lat},${l.lng}" target="_blank" class="btn-google"><i class="fas fa-map-marked-alt"></i> G.Maps</a>`;
-    const shareBtn = `<button onclick="compartirLugarNativo('${l.nombre}', '${l.desc.substring(0,50)}...')" class="btn-primary btn-share"><i class="fas fa-share-alt"></i> Compartir</button>`;
-    
-    const yaVisitado = visitados.includes(l.nombre);
-    const checkInBtn = `<button id="btn-checkin" onclick="checkInLugar('${l.nombre}')" class="btn-google" style="background:${yaVisitado ? '#30D158' : 'var(--bg-input)'}; color:${yaVisitado ? 'white' : 'var(--text-main)'}" ${yaVisitado ? 'disabled' : ''}>
-        <i class="fas ${yaVisitado ? 'fa-check-circle' : 'fa-map-pin'}"></i> ${yaVisitado ? 'Visitado' : 'Estuve aquí'}
-    </button>`;
-
-    let estadoHTML = '';
-    if(l.horarios && Array.isArray(l.horarios)) {
-        const hora = new Date().getHours();
-        const abierto = hora >= l.horarios[0] && hora < l.horarios[1];
-        estadoHTML = abierto ? `<span class="badge-estado abierto">Abierto</span>` : `<span class="badge-estado cerrado">Cerrado</span>`;
-    }
-
-    const esFav = favoritos.includes(l.nombre);
-    const corazonClass = esFav ? 'es-favorito' : '';
-    const iconClass = esFav ? 'fas' : 'far';
-    
-    f.innerHTML = `
-        <button onclick="toggleFavorito('${l.nombre}')" id="btn-fav-ficha" class="btn-fav ${corazonClass}"><i class="${iconClass} fa-heart"></i></button>
-        <button onclick="cerrarFicha()" class="btn-close-ficha">×</button>
-        ${imagenHTML}
-        <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-top:${margenExtra}; margin-bottom: 10px;">
-            <h2 style="font-size:1.35rem; margin:0; line-height:1.2; text-align:left; flex:1; padding-right:10px;">${l.nombre}</h2>
-            <button onclick="leerDescripcion('${textoTTS}')" class="btn-tts"><i class="fas fa-volume-up"></i></button>
-        </div>
-        <div style="display:flex; justify-content:flex-start; align-items:center; gap:8px; margin-bottom:18px;">
-            <span class="badge-tipo">${l.tipo}</span>
-            <span class="badge-star"><i class="fas fa-star"></i> ${l.estrellas || 4.5}</span>
-            ${estadoHTML}
-        </div>
-        <p style="font-size:0.95rem; color:var(--text-sec); margin-bottom:25px; line-height:1.5;">${descHTML}</p>
-        <div style="display:grid; grid-template-columns: 2fr 1fr; gap:15px; margin-bottom: 10px;">
-             <button class="btn-primary" onclick="irRutaGPS(${l.lat}, ${l.lng})"><i class="fas fa-location-arrow"></i> IR AHORA</button>
-             ${gmapsBtn}
-        </div>
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:10px;">
-            ${shareBtn}
-            ${checkInBtn}
-        </div>
-        ${wpBtn}
-    `;
-    f.classList.add('activa');
-    history.pushState({modal: 'ficha'}, null, "");
-}
-
-function cerrarFicha() { 
-    const f = document.getElementById('ficha-lugar');
-    const sheet = document.getElementById('bottom-sheet');
-    const fabControls = document.querySelector('.floating-controls');
-    if(f) f.classList.remove('activa'); 
-    if(sheet) { 
-        sheet.classList.remove('oculto-total'); 
-        sheet.classList.remove('abierto'); 
-        sheet.classList.add('cerrado'); 
-    }
-    if(fabControls) fabControls.classList.remove('oculto-en-ruta');
-    if(window.speechSynthesis) window.speechSynthesis.cancel();
-}
-
-window.toggleFavorito = function(nombre) {
-    const idx = favoritos.indexOf(nombre);
-    if(idx === -1) { favoritos.push(nombre); showToast("Guardado en favoritos"); } 
-    else { favoritos.splice(idx, 1); showToast("Eliminado de favoritos"); }
-    localStorage.setItem('favoritos_v1', JSON.stringify(favoritos));
-    
-    const btn = document.getElementById('btn-fav-ficha');
-    if(btn) {
-        btn.classList.toggle('es-favorito');
-        const icon = btn.querySelector('i');
-        icon.classList.toggle('fas'); icon.classList.toggle('far');
-    }
-    actualizarListaFavoritos(); 
-};
-
-function mostrarSkeleton(mostrar) {
-    const container = document.getElementById('skeleton-container');
+function renderFeed(lista) {
+    const container = document.getElementById('feed-container');
     if(!container) return;
-    if(mostrar) { container.innerHTML = `<div class="skeleton-item"></div><div class="skeleton-item"></div><div class="skeleton-item"></div>`; container.style.display = 'block'; } 
-    else { container.style.display = 'none'; container.innerHTML = ''; }
-}
-
-let speaking = false;
-window.leerDescripcion = function(texto) {
-    if ('speechSynthesis' in window) {
-        if (speaking) { window.speechSynthesis.cancel(); speaking = false; return; }
-        const utter = new SpeechSynthesisUtterance(texto);
-        utter.lang = 'es-ES'; utter.rate = 0.9; 
-        utter.onend = () => { speaking = false; };
-        window.speechSynthesis.speak(utter);
-        speaking = true;
-        showToast("Reproduciendo audioguía...");
-    } else { showToast("Tu celular no soporta audio"); }
-};
-
-window.toggleTransportMode = function() {
-    currentTransportMode = (currentTransportMode === 'car') ? 'foot' : 'car';
-    showToast(`Modo cambiado a: ${currentTransportMode === 'car' ? 'Auto 🚗' : 'Caminata 🚶'}`, "info");
-    if (routingControl && userMarker) {
-        const waypoints = routingControl.getWaypoints();
-        if(waypoints && waypoints.length >= 2) { 
-            const dest = waypoints[waypoints.length - 1].latLng; 
-            if(dest) irRutaGPS(dest.lat, dest.lng); 
-        }
-    }
-};
-
-window.iniciarCircuito = function(tipo) {
-    const puntos = circuitosData[tipo];
-    if (!puntos) return;
-    const waypoints = puntos.map(p => L.latLng(p[0], p[1]));
     
-    prepararUIparaNavegacion();
-    showToast(`Iniciando circuito ${tipo}...`, "info");
+    const destacados = lista.sort((a,b) => (b.estrellas || 0) - (a.estrellas || 0));
     
-    if (routingControl) try { map.removeControl(routingControl); } catch(e){}
-    routingControl = L.Routing.control({ 
-        waypoints: waypoints, 
-        router: new L.Routing.osrmv1({ language: 'es', profile: 'car' }),
-        routeWhileDragging: false, 
-        showAlternatives: false, 
-        createMarker: () => null, 
-        lineOptions: { styles: [{color: 'black', opacity: 0.4, weight: 10}, {color: '#FF9500', opacity: 1, weight: 7}] } 
-    }).addTo(map);
-    setupRoutingUI();
-};
-
-window.irRutaGPS = function(dLat, dLng) { 
-    if (!userMarker) { alert("⚠️ Activando GPS... permite la ubicación."); iniciarGPS(true); return; }
-    
-    prepararUIparaNavegacion();
-    showToast(`Calculando ruta (${currentTransportMode === 'car' ? 'Auto' : 'Pie'})...`, "info"); 
-    iniciarGPS(true);
-    
-    const lineColor = currentTransportMode === 'car' ? '#30D158' : '#007AFF'; 
-    if (routingControl) try { map.removeControl(routingControl); } catch(e){}
-    
-    routingControl = L.Routing.control({ 
-        waypoints: [ L.latLng(userMarker.getLatLng()), L.latLng(dLat, dLng) ], 
-        router: new L.Routing.osrmv1({ language: 'es', profile: currentTransportMode }),
-        routeWhileDragging: false, 
-        showAlternatives: true, 
-        fitSelectedRoutes: true, 
-        createMarker: () => null, 
-        lineOptions: { styles: [{color: 'black', opacity: 0.4, weight: 10}, {color: lineColor, opacity: 1, weight: 7}] } 
-    }).addTo(map);
-    setupRoutingUI();
-};
-
-function prepararUIparaNavegacion() {
-    cerrarFicha(); 
-    document.querySelector('.top-ui-layer').classList.add('hide-up'); 
-    document.getElementById('bottom-sheet').classList.add('oculto-total');
-    document.querySelector('.floating-controls').classList.add('oculto-en-ruta');
-}
-
-function setupRoutingUI() {
-    routingControl.on('routesfound', function(e) {
-        const routes = e.routes;
-        const summary = routes[0].summary;
-        const mins = Math.round(summary.totalTime / 60);
-        const timeTxt = mins > 60 ? `${Math.floor(mins/60)} h ${mins%60} min` : `${mins} min`;
-        const distTxt = (summary.totalDistance / 1000).toFixed(1) + " km";
+    container.innerHTML = destacados.map(l => {
+        const tieneImagen = l.img && !l.img.includes('logo.png');
+        const bgStyle = tieneImagen ? `background-image: url('${l.img}');` : `background: linear-gradient(45deg, #007AFF, #00C6FF);`; 
+        const isPremium = l.estrellas === 5 ? 'premium' : '';
         
-        setTimeout(() => {
-            const container = document.querySelector('.leaflet-routing-container');
-            if(container) {
-                container.classList.remove('expandido');
-                const oldHeader = container.querySelector('.gps-header-custom');
-                if(oldHeader) oldHeader.remove();
-                
-                const header = document.createElement('div');
-                header.className = 'gps-header-custom';
-                const modeIcon = currentTransportMode === 'car' ? 'fa-car' : 'fa-walking';
-                
-                header.innerHTML = `
-                    <div class="gps-info-left">
-                        <div class="gps-time">${timeTxt}</div>
-                        <div class="gps-sub-info"><span><i class="fas ${modeIcon}"></i> ${distTxt}</span><span class="ver-pasos-btn">Detalles <i class="fas fa-chevron-down"></i></span></div>
-                    </div>
-                    <div style="display:flex; gap:10px;">
-                        <div class="btn-toggle-mode" onclick="toggleTransportMode(event)"><i class="fas fa-exchange-alt"></i></div>
-                        <div class="btn-stop-nav" onclick="cancelarRuta(event)"><i class="fas fa-times"></i></div>
-                    </div>`;
-                
-                header.onclick = (ev) => { 
-                    if(!ev.target.closest('.btn-stop-nav') && !ev.target.closest('.btn-toggle-mode')) { 
-                        container.classList.toggle('expandido'); 
-                    } 
-                };
-                container.insertBefore(header, container.firstChild);
-            }
-        }, 100);
-    });
-    routingControl.on('routingerror', function() { showToast("Error ruta. Reintentando...", "error"); });
+        return `
+        <div class="card-explorar ${isPremium}" onclick="abrirFichaNombre('${l.nombre}')" style="${bgStyle}">
+            <div class="card-content">
+                <div class="card-top">
+                    <span class="tag-cat">${l.categoria || 'Lugar'}</span>
+                    ${l.estrellas ? `<span class="tag-star"><i class="fas fa-star"></i> ${l.estrellas}</span>` : ''}
+                </div>
+                <div class="card-bottom">
+                    <h3>${l.nombre}</h3>
+                    <p><i class="fas fa-map-marker-alt"></i> Corrientes</p>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
 }
 
-window.cancelarRuta = function(e) { 
-    if(e && e.stopPropagation) e.stopPropagation();
-    if (routingControl) { try { map.removeControl(routingControl); } catch(err){} routingControl = null; } 
-    document.querySelector('.top-ui-layer').classList.remove('hide-up');
-    document.getElementById('bottom-sheet').classList.remove('oculto-total');
-    document.querySelector('.floating-controls').classList.remove('oculto-en-ruta');
-    if(userMarker) map.setView(userMarker.getLatLng(), 16); 
-    if(gpsWatchId) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
-    const container = document.querySelector('.leaflet-routing-container');
-    if(container) container.remove(); 
-}
-
-function activarDeslizamiento() {
-    const sheet = document.getElementById('bottom-sheet');
-    const handle = document.querySelector('.sheet-handle-area');
-    let startY = 0; let isDragging = false; let currentTranslateY = 0;
+function updateStats() {
+    const totalVisitados = state.visitados.length;
+    const nivelActual = Math.floor(totalVisitados / 2) + 1; 
     
-    const touchStart = (e) => { isDragging = true; startY = e.touches[0].clientY; sheet.style.transition = 'none'; currentTranslateY = sheet.classList.contains('abierto') ? 0 : (sheet.offsetHeight - 90); };
-    const touchMove = (e) => { 
-        if (!isDragging) return; 
-        const y = e.touches[0].clientY; 
-        const delta = y - startY; 
-        let newPos = currentTranslateY + delta; 
-        const maxClosed = sheet.offsetHeight - 90; 
-        if (newPos < 0) newPos = newPos * 0.3; 
-        if (newPos > maxClosed) newPos = maxClosed + (newPos - maxClosed) * 0.3; 
-        sheet.style.transform = `translateY(${newPos}px)`; 
-    };
-    const touchEnd = () => { 
-        if (!isDragging) return; 
-        isDragging = false; 
-        sheet.style.transition = 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)'; 
-        const style = window.getComputedStyle(sheet); 
-        const currentVisualY = new DOMMatrix(style.transform).m42; 
-        if (currentVisualY < (sheet.offsetHeight - 90) / 2) { toggleMenuSheet('abrir'); } else { toggleMenuSheet('cerrar'); } 
-        setTimeout(() => { sheet.style.transform = ''; }, 50); 
-    };
-    handle.addEventListener('touchstart', touchStart, { passive: true }); 
-    handle.addEventListener('touchmove', touchMove, { passive: false }); 
-    handle.addEventListener('touchend', touchEnd);
-}
+    const elVis = document.getElementById('stat-visitados');
+    const elNiv = document.getElementById('stat-nivel');
+    if(elVis) elVis.innerText = totalVisitados;
+    if(elNiv) elNiv.innerText = nivelActual;
 
-function iniciarGPS(continuo = false) { 
-    if(!navigator.geolocation) return;
-    const onPos = (pos) => { 
-        const latlng = [pos.coords.latitude, pos.coords.longitude]; 
-        if(!userMarker) { 
-            const userIcon = L.divIcon({className: 'user-location-dot', html: '<div class="dot-core"></div><div class="dot-pulse"></div>', iconSize: [20, 20]}); 
-            userMarker = L.marker(latlng, {icon: userIcon}).addTo(map); 
-        } else { userMarker.setLatLng(latlng); } 
-    };
-    if (continuo) { 
-        if(gpsWatchId) navigator.geolocation.clearWatch(gpsWatchId); 
-        gpsWatchId = navigator.geolocation.watchPosition(onPos, err => console.log(err), {enableHighAccuracy: true}); 
-    } else { 
-        navigator.geolocation.getCurrentPosition(onPos, err => console.log(err), {enableHighAccuracy: true}); 
+    // Badges (Insignias)
+    const badgeContainer = document.getElementById('badges-container');
+    if (badgeContainer) {
+        let badgesHTML = '';
+        state.badges.forEach(b => {
+            const unlocked = totalVisitados >= b.req || b.special;
+            badgesHTML += `
+            <div class="badge-item ${unlocked ? 'unlocked' : 'locked'}" onclick="showBadgeInfo('${b.nombre}', '${b.desc}')">
+                <div class="badge-icon">${b.icon}</div>
+                <span>${b.nombre}</span>
+            </div>`;
+        });
+        badgeContainer.innerHTML = badgesHTML;
     }
-}
-document.addEventListener("visibilitychange", () => { if (document.hidden && gpsWatchId) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; } });
-
-async function obtenerDireccionReversa(lat, lng) {
-    const txt = document.getElementById('sos-direccion-text');
-    txt.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Buscando dirección...';
-    try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
-        const data = await response.json();
-        if (data && data.address) {
-            const a = data.address;
-            const calle = a.road || 'Calle desconocida';
-            const altura = a.house_number || '';
-            const zona = a.suburb || a.neighbourhood || a.city || '';
-            const direccionCorta = `${calle} ${altura}, ${zona}`;
-            txt.innerHTML = `<i class="fas fa-map-marker-alt"></i> ${direccionCorta}`;
-            window.sosDireccionCache = direccionCorta; 
-        } else {
-            txt.innerHTML = `<i class="fas fa-map-marker-alt"></i> Ubicación desconocida`;
-            window.sosDireccionCache = "Ubicación desconocida";
+    
+    // Pasaporte
+    const pasaporteGrid = document.getElementById('pasaporte-grid');
+    if (pasaporteGrid) {
+        const fotos = state.visitados.filter(v => v.foto);
+        if (fotos.length > 0) { 
+            pasaporteGrid.innerHTML = fotos.map(v => {
+                const rot = Math.floor(Math.random() * 16) - 8; 
+                return `<div class="foto-recuerdo" style="--rot:${rot}deg"><img src="${v.foto}" loading="lazy"><span>${v.nombre}</span></div>`;
+            }).join(''); 
+        } else if (state.visitados.length > 0) { 
+            pasaporteGrid.innerHTML = '<div class="empty-state-p">Has visitado lugares, pero sin fotos aún.</div>'; 
         }
-    } catch (e) {
-        console.warn("Fallo Geocoding:", e);
-        txt.innerHTML = `<i class="fas fa-map-marker-alt"></i> ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-        window.sosDireccionCache = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     }
 }
 
-window.abrirSOS = () => {
-    abrirModal('modal-sos');
-    const txt = document.getElementById('sos-direccion-text');
-    if(userMarker) { const { lat, lng } = userMarker.getLatLng(); obtenerDireccionReversa(lat, lng); } 
-    else { txt.innerText = "Obteniendo satélites..."; iniciarGPS(false); setTimeout(() => { if(userMarker) { const { lat, lng } = userMarker.getLatLng(); obtenerDireccionReversa(lat, lng); } else { txt.innerText = "Señal GPS débil. Sal al exterior."; } }, 4000); }
-};
+// --- UTILIDADES ---
 
-window.compartirWpSOS = () => {
-    let msg = "🚨 ¡AYUDA! 🚨\nEstoy en: " + (window.sosDireccionCache || "Mi ubicación actual") + ".";
-    if(userMarker) { const coords = userMarker.getLatLng(); msg += `\n\nVer en mapa: https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}`; }
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
-};
+window.abrirFichaNombre = (n) => { const l = state.lugares.find(x=>x.nombre===n); if(l) { cambiarTab('map', false); setTimeout(() => { state.map.flyTo([l.lat, l.lng], 16); abrirFicha(l); }, 300); } };
 
-window.sugerirLugar = () => { window.open(`https://wa.me/5493794XXXXXX?text=${encodeURIComponent("Hola, me gustaría sugerir un nuevo lugar para Ruta Correntina: ")}`, '_blank'); };
-
-window.cargarTransporte = function() { 
-    const contenedor = document.getElementById('contenedor-horarios'); 
-    contenedor.innerHTML = ''; 
-    datosTransporte.forEach(t => { 
-        const item = document.createElement('div'); 
-        item.className = 'transporte-card'; 
-        item.style.borderBottom = "1px solid var(--border-color)";
-        item.style.padding = "10px 0";
-        item.innerHTML = `<h4 style="margin:0; color:var(--primary); font-size:1.1rem;">${t.empresa}</h4><div style="display:flex; justify-content:space-between; font-size:0.9rem; margin-top:8px;"><span><strong>Ida:</strong> ${t.horarios.ida.join(', ')}</span><span><strong>Vuelta:</strong> ${t.horarios.vuelta.join(', ')}</span></div>`; 
-        contenedor.appendChild(item); 
-    }); 
-    toggleMenuSheet('cerrar'); 
-    abrirModal('modal-info'); 
-};
-
-window.cargarEventos = function() { /* Implementar futuro */ };
-
-window.compartirLugarNativo = function(nombre, desc) { 
-    const url = `${window.location.origin}${window.location.pathname}?lugar=${encodeURIComponent(nombre)}`; 
-    if (navigator.share) { navigator.share({ title: 'Ruta Correntina', text: `¡Mira este lugar en Corrientes! ${nombre} - ${desc}`, url: url }).catch(console.error); } 
-    else { mostrarQR(); } 
-};
-
-function toggleMenuSheet(accion) { 
-    const sheet = document.getElementById('bottom-sheet'); 
-    if(accion === 'abrir') { sheet.classList.remove('cerrado'); sheet.classList.add('abierto'); history.pushState({menu: 'abierto'}, null, ""); } 
-    else if (accion === 'cerrar') { sheet.classList.remove('abierto'); sheet.classList.add('cerrado'); } 
-    else { 
-        sheet.classList.toggle('abierto'); 
-        sheet.classList.toggle('cerrado'); 
-        if(sheet.classList.contains('abierto')) history.pushState({menu: 'abierto'}, null, ""); 
-    } 
-}
-
-window.filtrarMapa = function(cat) { 
-    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); 
-    const chips = document.querySelectorAll('.chip'); 
-    for(let c of chips) { if(c.innerText.toLowerCase().includes(cat) || c.getAttribute('onclick').includes(cat)) c.classList.add('active'); } 
+window.cambiarTab = (tabId, pushHistory = true) => {
+    if (document.getElementById('ficha-lugar').classList.contains('open')) cerrarFicha(false);
     
-    if(cat === 'todos') { renderizarMarcadores(allLugares); } 
-    else if(cat === 'favoritos') { 
-        const favs = allLugares.filter(l => favoritos.includes(l.nombre)); 
-        renderizarMarcadores(favs); 
-        if(favs.length === 0) showToast("Aún no tienes favoritos"); 
-    } else { 
-        const tiposPermitidos = categoriasUI[cat] || [cat]; 
-        const filtrados = allLugares.filter(l => tiposPermitidos.includes(l.tipo ? l.tipo.toLowerCase() : '')); 
-        renderizarMarcadores(filtrados); 
-    } 
-    toggleMenuSheet('abrir'); 
+    // Animación de cambio de pestaña
+    document.querySelectorAll('.app-view').forEach(v => { 
+        v.classList.remove('active'); 
+        setTimeout(() => { if(!v.classList.contains('active')) v.style.display = 'none'; }, 200); 
+    });
+    
+    const target = document.getElementById(`view-${tabId}`);
+    target.style.display = 'block';
+    setTimeout(() => { target.style.opacity = '1'; target.classList.add('active'); }, 50);
+    
+    // Botones de abajo
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    const mapIdx = {'map':0, 'list':1, 'profile':2};
+    document.querySelectorAll('.tab-btn')[mapIdx[tabId]].classList.add('active');
+    
+    if(tabId === 'map') setTimeout(() => state.map.invalidateSize(), 250);
+    if(tabId === 'profile') updateStats();
+    if (pushHistory) window.history.pushState({ view: tabId }, '', `?view=${tabId}`);
+};
+
+window.iniciarGPS = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.watchPosition((pos) => {
+            state.userCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            const icon = L.divIcon({ className: '', html: '<div class="user-dot"></div><div class="user-pulse"></div>', iconSize: [20, 20] });
+            if (!state.userMarker) state.userMarker = L.marker([state.userCoords.lat, state.userCoords.lng], { icon: icon }).addTo(state.map);
+            else state.userMarker.setLatLng([state.userCoords.lat, state.userCoords.lng]);
+            actualizarBotonCheckin();
+    }, null, CONFIG.gpsOptions);
+};
+
+window.abrirFicha = (lugar) => {
+    state.currentPlace = lugar;
+    const isFav = (state.favoritos || []).includes(lugar.nombre);
+    const tieneImagen = lugar.img && !lugar.img.includes('logo.png');
+    const imgStyle = tieneImagen ? `<img src="${lugar.img}" loading="lazy">` : `<div style="width:100%; height:100%; background: linear-gradient(45deg, #007AFF, #00C6FF); display:flex; align-items:center; justify-content:center;"><i class="fas ${getCatIcon(lugar.categoria)}" style="font-size:4rem; color:white; opacity:0.5;"></i></div>`;
+
+    const html = `
+        <div class="ficha-hero">
+            ${imgStyle}
+            <button class="btn-back-float" onclick="cerrarFicha()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="ficha-content">
+            <div class="ficha-header">
+                <div style="display:flex; justify-content:space-between; align-items:start;">
+                    <div><span class="cat-pill-mini">${lugar.categoria||'General'}</span><h1>${lugar.nombre}</h1></div>
+                    <button class="btn-fav ${isFav?'active':''}" onclick="toggleFav('${lugar.nombre}', this)" style="font-size:1.5rem; background:none; border:none; padding:0;"><i class="${isFav?'fas':'far'} fa-heart" style="color: ${isFav?'#FF3B30':'var(--text-sec)'}"></i></button>
+                </div>
+                <p>${lugar.desc || 'Descripción no disponible.'}</p>
+            </div>
+            <button id="btn-checkin-dynamic" onclick="triggerCheckIn()" class="btn-checkin-big disabled"><i class="fas fa-satellite-dish"></i> Buscando ubicación...</button>
+        </div>`;
+    const ficha = document.getElementById('ficha-lugar');
+    ficha.innerHTML = html;
+    ficha.classList.add('open');
+    actualizarBotonCheckin();
+};
+
+window.cerrarFicha = (goBack = true) => { document.getElementById('ficha-lugar').classList.remove('open'); state.currentPlace = null; if (goBack && window.history.state && window.history.state.modal === 'ficha') { window.history.back(); } };
+window.centrarMapaUsuario = () => { if(state.userCoords) state.map.flyTo([state.userCoords.lat, state.userCoords.lng], 16); else showToast("Buscando señal GPS..."); };
+window.showBadgeInfo = (nombre, desc) => { showToast(`🏆 ${nombre}: ${desc}`); }
+
+function setupNetworkStatus() {
+    const update = () => {
+        const banner = document.getElementById('offline-banner');
+        if (navigator.onLine) banner.classList.remove('visible');
+        else banner.classList.add('visible');
+    };
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    update();
 }
 
-window.alternarTema = function() { 
-    document.body.classList.toggle('dark-mode'); 
-    const isDark = document.body.classList.contains('dark-mode'); 
-    document.querySelector('#theme-toggle i').className = isDark ? 'fas fa-sun' : 'fas fa-moon'; 
-    setTileLayer(isDark ? 'dark' : 'light'); 
+function renderEventBanner() {
+    const container = document.getElementById('eventos-banner-container');
+    if (state.eventos && state.eventos.length > 0) {
+        const evt = state.eventos[0];
+        container.innerHTML = `<div class="event-banner"><h4>📅 Próximo Evento</h4><h2>${evt.titulo}</h2><p>${evt.desc} • ${evt.fecha}</p></div>`;
+    }
 }
 
-window.expandirMenu = () => toggleMenuSheet('abrir');
-window.toggleAcordeon = (id) => document.getElementById(id).classList.toggle('open');
-window.verCercanos = () => { if(userMarker) { map.flyTo(userMarker.getLatLng(), 15); showToast("Buscando en tu zona..."); } else { showToast("Activa tu GPS"); iniciarGPS(true); } };
-window.mostrarQR = () => { document.getElementById('qr-image').src=`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(window.location.href)}`; abrirModal('modal-qr'); };
-window.centrarMapaUsuario = () => { if(userMarker) map.setView(userMarker.getLatLng(), 16); else { iniciarGPS(true); showToast("Buscando señal..."); } };
-function abrirModal(id) { document.getElementById(id).style.display='block'; history.pushState({modal: id}, null, ""); }
-window.cerrarModal = (id) => document.getElementById(id).style.display='none';
-function showToast(msg, type) { const t = document.createElement('div'); t.className = 'toast'; t.innerText = msg; if(type==='error') t.style.background = '#FF3B30'; document.getElementById('toast-container').appendChild(t); setTimeout(() => t.remove(), 3000); }
-
-async function fetchClima() { 
-    try { 
-        const controller = new AbortController(); 
-        const timeoutId = setTimeout(() => controller.abort(), 5000); 
-        const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-27.46&longitude=-58.83&current_weather=true', { signal: controller.signal }); 
-        clearTimeout(timeoutId); 
-        if (!response.ok) throw new Error("Clima no disponible"); 
-        const d = await response.json(); 
-        document.getElementById('clima-widget').innerHTML = `<i class="fas fa-sun"></i> ${Math.round(d.current_weather.temperature)}°`; 
-    } catch(e) { 
-        document.getElementById('clima-widget').innerHTML = `<i class="fas fa-cloud"></i>`; 
-    } 
+async function initWeather() {
+    try {
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=-27.469&longitude=-58.830&current_weather=true`);
+        const data = await res.json();
+        const temp = Math.round(data.current_weather.temperature);
+        const widget = document.getElementById('weather-widget');
+        if(widget) {
+            widget.querySelector('span').innerText = `${temp}°C`;
+            widget.style.display = 'inline-flex';
+        }
+    } catch (e) { console.warn("Clima no disponible"); }
 }
 
-initApp();
+function setupEventListeners() { document.getElementById('dark-mode-toggle').addEventListener('click', () => { document.body.classList.toggle('dark-mode'); localStorage.setItem('theme', document.body.classList.contains('dark-mode')?'dark':'light'); updateMapTiles(); }); }
+function initTheme() { if(localStorage.getItem('theme')==='dark') document.body.classList.add('dark-mode'); }
+function showToast(m) { const t=document.createElement('div'); t.className='toast'; t.innerText=m; document.getElementById('toast-container').appendChild(t); setTimeout(()=>t.remove(),3000); }
+function getCatIcon(c) { return {'turismo':'fa-camera','gastronomia':'fa-utensils','hospedaje':'fa-bed','shopping':'fa-shopping-bag'}[c?.toLowerCase()] || 'fa-map-marker-alt'; }
+function getDistance(lat1,lon1,lat2,lon2) { const R=6371e3; const dLat=(lat2-lat1)*Math.PI/180; const dLon=(lon2-lon1)*Math.PI/180; const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2; return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)); }

@@ -8,7 +8,8 @@
       "lat": -27.472933,
       "lng": -58.856728,
       "img": "./img/puente.webp",
-      "desc": "El coloso que une Corrientes y Chaco. Vistas panorámicas increíbles del río Paraná."
+      "desc": "El coloso que une Corrientes y Chaco. Vistas panorámicas increíbles del río Paraná.",
+      "tags": ["vista", "rio", "gratis", "aire libre"]
     },
     {
       "nombre": "Costanera Sur",
@@ -18,7 +19,8 @@
       "lat": -27.477179,
       "lng": -58.855176,
       "img": "./img/costaSur.webp",
-      "desc": "El paseo más moderno frente al río, ideal para caminatas al atardecer y tomar tereré."
+      "desc": "El paseo más moderno frente al río, ideal para caminatas al atardecer y tomar tereré.",
+      "tags": ["caminata", "mate", "aire libre", "atardecer"]
     },
     {
       "nombre": "Catedral Nuestra Señora del Rosario",
@@ -27,7 +29,8 @@
       "estrellas": 4,
       "lat": -27.469713,
       "lng": -58.831315,
-      "desc": "Iglesia histórica frente a la Plaza Cabral, un ícono de la fe correntina."
+      "desc": "Iglesia histórica frente a la Plaza Cabral, un ícono de la fe correntina.",
+      "tags": ["historia", "religion", "arquitectura"]
     },
     {
       "nombre": "Museo de Artesanías",
@@ -37,7 +40,8 @@
       "lat": -27.462771,
       "lng": -58.838739,
       "img": "./img/artesanias.webp",
-      "desc": "Casa colonial donde se exhiben y venden artesanías tradicionales de la provincia."
+      "desc": "Casa colonial donde se exhiben y venden artesanías tradicionales de la provincia.",
+      "tags": ["cultura", "arte", "historia"]
     },
     {
       "nombre": "Parque Mitre",
@@ -47,7 +51,8 @@
       "lat": -27.460563,
       "lng": -58.828803,
       "img": "./img/parqueMitre.webp",
-      "desc": "Histórico parque con faro, pista de skate y vista a la punta del parque."
+      "desc": "Histórico parque con faro, pista de skate y vista a la punta del parque.",
+      "tags": ["skate", "niños", "parque", "mate"]
     },
     {
       "nombre": "Plaza 25 de Mayo",
@@ -57,7 +62,8 @@
       "lat": -27.463049,
       "lng": -58.839644,
       "img": "./img/25mayo.webp",
-      "desc": "El centro histórico administrativo, rodeada de la Casa de Gobierno y edificios antiguos."
+      "desc": "El centro histórico administrativo, rodeada de la Casa de Gobierno y edificios antiguos.",
+      "tags": ["historia", "centro", "gobierno"]
     },
     {
       "nombre": "Parque Cambá Cuá",
@@ -67,7 +73,8 @@
       "lat": -27.465158,
       "lng": -58.844778,
       "img": "./img/cambaCua.webp",
-      "desc": "El barrio del candombe, cultura y eventos al aire libre. Muy concurrido los fines de semana."
+      "desc": "El barrio del candombe, cultura y eventos al aire libre. Muy concurrido los fines de semana.",
+      "tags": ["cultura", "eventos", "artesania"]
     },
     {
       "nombre": "Playa Arazaty",
@@ -77,7 +84,8 @@
       "lat": -27.475695,
       "lng": -58.856093,
       "img": "./img/playaArazaty.webp",
-      "desc": "La playa más popular de la ciudad. Arena, sol y servicios todo el año."
+      "desc": "La playa más popular de la ciudad. Arena, sol y servicios todo el año.",
+      "tags": ["playa", "verano", "sol", "arena"]
     },
     {
       "nombre": "Turismo Hotel Casino",
@@ -87,7 +95,8 @@
       "lat": -27.4615,
       "lng": -58.84,
       "desc": "Alojamiento de lujo y entretenimiento con vista al río.",
-      "wp": "5493794000000"
+      "wp": "5493794000000",
+      "tags": ["lujo", "casino", "vista"]
     },
     {
       "nombre": "Shopping Centenario",
@@ -96,7 +105,8 @@
       "estrellas": 4,
       "lat": -27.472,
       "lng": -58.805,
-      "desc": "Centro comercial con cine, patio de comidas y locales de ropa."
+      "desc": "Centro comercial con cine, patio de comidas y locales de ropa.",
+      "tags": ["compras", "cine", "aire acondicionado"]
     },
     {
       "nombre": "Hospital Escuela",
@@ -105,12 +115,37 @@
       "lat": -27.4745,
       "lng": -58.833,
       "desc": "Atención de urgencias y especialidades médicas.",
-      "wp": "107"
+      "wp": "107",
+      "tags": ["emergencia", "medico"]
     }
   ],
   "eventos": [
     { "fecha": "Ene/Feb", "titulo": "Carnavales Oficiales", "desc": "Corsódromo Nolo Alias. Fiesta Nacional del Carnaval." },
     { "fecha": "Todo el año", "titulo": "Peña en Punta Tacuara", "desc": "Música en vivo los domingos por la tarde." },
     { "fecha": "Julio", "titulo": "Feria del Libro", "desc": "Evento cultural en la Costanera Sur." }
+  ],
+  "cupones_disponibles": [
+    {
+      "id": "tasty_burger",
+      "titulo": "20% OFF en Ms. Tasty",
+      "desc": "Descuento en hamburguesa doble.",
+      "comercio": "Ms. Tasty",
+      "req_categoria": "gastronomia",
+      "req_cantidad": 1,
+      "codigo": "TASTY2026",
+      "color": "#FF9F0A"
+    },
+    {
+      "id": "hotel_spa",
+      "titulo": "15% en Spa del Hotel",
+      "desc": "Relájate después de explorar.",
+      "comercio": "Turismo Hotel",
+      "req_categoria": "turismo",
+      "req_cantidad": 3,
+      "codigo": "RELAXCTES",
+      "color": "#BF5AF2"
+    }
   ]
 }
+
+

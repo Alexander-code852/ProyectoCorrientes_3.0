@@ -3,247 +3,138 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#F2F2F7">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Ruta Correntina</title>
-    
-    <meta property="og:title" content="Ruta Correntina - Guía Turística">
-    <meta property="og:description" content="Descubrí los mejores lugares, hoteles, eventos y paseos de Corrientes Capital.">
-    
+    <title>Ruta Correntina Ultimate</title>
+    <meta name="theme-color" content="#007AFF">
     <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/png" href="logo.png">
-    <link rel="apple-touch-icon" href="logo.png">
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
-    
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div id="offline-banner"><i class="fas fa-wifi-slash"></i> Sin conexión</div>
 
-    <div id="map"></div>
-
-    <div id="splash-screen">
-        <div class="splash-content">
-            <div class="logo-container-anim">
-                <img src="logo.png" alt="Ruta Correntina Logo" class="splash-logo">
+    <div id="view-map" class="app-view active">
+        <div id="map"></div>
+        <div class="top-bar-floating">
+            <div class="search-box-glass">
+                <i class="fas fa-search"></i>
+                <input type="text" id="buscador-input" placeholder="¿A dónde vamos?" onkeyup="filtrarInput(this.value)">
+                <div id="weather-widget" class="weather-in-bar" style="display:none;"><i class="fas fa-sun"></i><span>--°C</span></div>
             </div>
-            <h2 class="splash-slogan">Descubrí tu ciudad</h2>
-            <div class="spinner-box">
-                <div class="circle-border"><div class="circle-core"></div></div>  
+            <div class="filter-scroll">
+                <button class="filter-pill active" onclick="filtrarBoton('todos', this)">Todo</button>
+                <button class="filter-pill" onclick="filtrarBoton('turismo', this)">📸 Turismo</button>
+                <button class="filter-pill" onclick="filtrarBoton('gastronomia', this)">🍔 Comida</button>
+                <button class="filter-pill" onclick="filtrarBoton('hospedaje', this)">🛏️ Hotel</button>
+            </div>
+        </div>
+        <div class="map-controls">
+            <button onclick="centrarMapaUsuario()" class="btn-float glass-btn"><i class="fas fa-location-arrow"></i></button>
+        </div>
+        <div id="nav-ui-bottom" class="nav-island">
+            <div class="nav-content-wrapper" style="width: 100%;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="nav-data">
+                        <div class="nav-main-metric"><span id="nav-time">-- min</span><small id="nav-arrival">Calculando...</small></div>
+                        <div class="nav-secondary-metric"><i class="fas fa-walking"></i><span id="nav-dist">-- km</span></div>
+                    </div>
+                    <div class="nav-actions"><button onclick="finalizarViaje()" class="btn-end-trip"><i class="fas fa-times"></i></button></div>
+                </div>
+                <button id="btn-toggle-steps" onclick="togglePasos()" style="display:none; width:100%; border:none; background:none; color:var(--primary); margin-top:10px;">Ver indicaciones <i class="fas fa-chevron-down"></i></button>
+                <div id="nav-steps-container" class="steps-container" style="display:none;"></div>
             </div>
         </div>
     </div>
 
-    <div class="top-ui-layer">
-        <div class="search-bar-glass">
-            <button class="menu-trigger" onclick="toggleMenuSheet('abrir')">
-                <i class="fas fa-bars"></i>
-            </button>
-            <input type="text" id="buscador-input" placeholder="Buscar 'milanesa', 'museo'..." onfocus="expandirMenu()" onkeyup="filtrarPorBusqueda()">
-            <div id="clima-widget" class="weather-badge"><i class="fas fa-sync fa-spin"></i></div>
+    <div id="view-list" class="app-view" style="display:none;">
+        <div class="view-header-padded"><h1>Descubre</h1><p>Lo mejor de Corrientes</p></div>
+        <div id="eventos-banner-container"></div>
+        <div class="section-title" style="padding: 10px 20px;"><h3 style="margin:0;">🗺️ Circuitos</h3></div>
+        <div class="rutas-scroll-inline">
+            <button onclick="iniciarRuta('historica')" class="ruta-card-inline"><div class="icon-ruta">🏛️</div><div><strong>Histórico</strong><small>40 min</small></div></button>
+            <button onclick="iniciarRuta('costanera')" class="ruta-card-inline"><div class="icon-ruta">🌅</div><div><strong>Costera</strong><small>25 min</small></div></button>
+        </div>
+        <div class="section-title" style="padding: 20px;"><h3 style="margin:0;">Lugares</h3></div>
+        <div id="feed-container" class="feed-grid"></div>
+        <div style="height:100px;"></div>
+    </div>
+
+    <div id="view-profile" class="app-view" style="display:none;">
+        
+        <div id="auth-container" style="display: block;">
+            <div class="auth-card">
+                <div class="auth-header">
+                    <div class="auth-icon-circle">
+                        <i class="fas fa-map-marked-alt"></i>
+                    </div>
+                    <h2 id="auth-title" class="auth-title">Bienvenido</h2>
+                    <p id="auth-subtitle" class="auth-subtitle">Inicia sesión para continuar</p>
+                </div>
+
+                <form id="auth-form" onsubmit="handleSubmit(event)">
+                    <div class="input-group-premium">
+                        <input type="email" id="email-input" class="input-premium" placeholder="Correo electrónico" required>
+                        <i class="fas fa-envelope input-icon"></i>
+                    </div>
+
+                    <div class="input-group-premium">
+                        <input type="password" id="pass-input" class="input-premium" placeholder="Contraseña" required>
+                        <i class="fas fa-lock input-icon"></i>
+                    </div>
+                    
+                    <button type="submit" id="btn-submit" class="btn-login-premium">
+                        Iniciar Sesión
+                    </button>
+                </form>
+
+                <div class="auth-footer">
+                    <p id="toggle-text" style="color: #8E8E93; font-size: 0.85rem; margin-bottom: 12px;">
+                        ¿Es tu primera vez aquí?
+                    </p>
+                    <button type="button" id="btn-toggle" onclick="toggleAuthMode()" class="btn-register-link">
+                        Crear una cuenta nueva
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <div id="filter-chips">
-            <div class="chip active" onclick="filtrarMapa('todos')">Todo</div>
-            <div class="chip" onclick="ordenarPorCercania()">📍 Cercanos</div>
-            <div class="chip" onclick="filtrarMapa('favoritos')">❤️ Favs</div>
-            <div class="chip" onclick="filtrarMapa('turismo')">Paseos</div>
-            <div class="chip" onclick="filtrarMapa('gastronomia')">Comer</div>
-            <div class="chip" onclick="filtrarMapa('hospedaje')">Dormir</div>
-            <div class="chip" onclick="filtrarMapa('servicios')">Útil</div>
+        <div id="user-profile-content" style="display:none;">
+            <div class="profile-header">
+                <div class="avatar-circle"><img id="user-avatar" src="" alt="Avatar"></div>
+                <h2 id="user-name">Cargando...</h2>
+                <span class="role-badge">Turista</span>
+                <button onclick="cerrarSesion()" style="background:none; border:none; color:var(--danger); display:block; margin:15px auto; cursor:pointer;">Cerrar Sesión</button>
+            </div>
+            <div class="stats-row">
+                <div class="stat-box"><strong id="stat-visitados">0</strong><small>Check-ins</small></div>
+                <div class="stat-box"><strong id="stat-nivel">1</strong><small>Nivel</small></div>
+            </div>
+            <div class="section-title" style="padding:0 20px;"><h3 style="margin:0;">🎖️ Insignias</h3></div>
+            <div id="badges-container" class="badges-scroll"></div>
+            <div class="section-title" style="padding:20px;"><h3 style="margin:0;">📸 Mi Pasaporte</h3></div>
+            <div id="pasaporte-grid" class="pasaporte-grid"></div>
+            <div class="section-title" style="padding:20px;"><h3>Ajustes</h3></div>
+            <div class="settings-list">
+                <div class="setting-item" id="dark-mode-toggle"><div class="icon-box"><i class="fas fa-moon"></i></div><span>Modo Oscuro</span><div class="toggle-switch"></div></div>
+            </div>
+            <div style="height:100px;"></div>
         </div>
     </div>
 
-    <div id="bottom-sheet" class="cerrado">
-        <div class="sheet-handle-area" onclick="toggleMenuSheet()">
-            <div class="sheet-handle"></div>
-        </div>
-
-        <div class="sheet-header">
-            <div class="app-logo">
-                <div class="logo-icon-bg">
-                    <i class="fas fa-map-location-dot"></i>
-                </div>
-                <div class="logo-text">
-                    <span class="txt-ruta">RUTA</span>
-                    <span class="txt-correntina">CORRENTINA</span>
-                </div>
-            </div>
-            <button id="theme-toggle" onclick="alternarTema()">
-                <i class="fas fa-moon"></i>
-            </button>
-        </div>
-
-        <div class="sheet-content">
-            <div class="quick-actions-grid">
-                <div class="action-card" onclick="filtrarMapa('favoritos')">
-                    <div class="icon-box pink"><i class="fas fa-heart"></i></div>
-                    <span>Favoritos</span>
-                </div>
-                <div class="action-card" onclick="cargarTransporte()">
-                    <div class="icon-box green"><i class="fas fa-bus"></i></div>
-                    <span>Bus</span>
-                </div>
-                <div class="action-card" onclick="abrirLogros()">
-                    <div class="icon-box purple"><i class="fas fa-trophy"></i></div>
-                    <span>Logros</span>
-                </div>
-                <div class="action-card" onclick="sugerirLugar()">
-                    <div class="icon-box blue"><i class="fas fa-plus"></i></div>
-                    <span>Sugerir</span>
-                </div>
-            </div>
-
-            <div class="section-title">CIRCUITOS RECOMENDADOS</div>
-            <div class="circuitos-scroll">
-                <div class="circuito-card c-historico" onclick="iniciarCircuito('historico')">
-                    <i class="fas fa-landmark"></i>
-                    <div>
-                        <strong>Casco Histórico</strong>
-                        <span>Plazas e Iglesias</span>
-                    </div>
-                </div>
-                <div class="circuito-card c-costa" onclick="iniciarCircuito('costanera')">
-                    <i class="fas fa-water"></i>
-                    <div>
-                        <strong>Ruta Costera</strong>
-                        <span>Río y Playas</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="section-title">CATEGORÍAS</div>
-
-            <div id="empty-state-msg" style="display:none; text-align:center; padding:20px; color:var(--text-sec);">
-                <i class="fas fa-search" style="font-size:2rem; margin-bottom:10px; opacity:0.5;"></i>
-                <p>No encontramos lugares.</p>
-            </div>
-
-            <div id="skeleton-container"></div>
-
-            <div class="grouped-list" id="lista-principal-container">
-                <div class="categoria-item" id="cat-favoritos-panel">
-                    <div class="categoria-header" onclick="toggleAcordeon('cat-favoritos-panel')">
-                        <div class="cat-label"><div class="cat-icon-bg pink"><i class="fas fa-heart"></i></div><span>Tus Favoritos</span></div>
-                        <i class="fas fa-chevron-right chevron"></i>
-                    </div>
-                    <ul id="lista-favoritos-panel" class="lista-lugares"></ul>
-                </div>
-                <div class="categoria-item" id="cat-turismo">
-                    <div class="categoria-header" onclick="toggleAcordeon('cat-turismo')">
-                        <div class="cat-label"><div class="cat-icon-bg c-blue"><i class="fas fa-camera"></i></div><span>Turismo y Paseos</span></div>
-                        <i class="fas fa-chevron-right chevron"></i>
-                    </div>
-                    <ul id="lista-turismo" class="lista-lugares"></ul>
-                </div>
-                <div class="categoria-item" id="cat-gastronomia">
-                    <div class="categoria-header" onclick="toggleAcordeon('cat-gastronomia')">
-                        <div class="cat-label"><div class="cat-icon-bg c-orange"><i class="fas fa-utensils"></i></div><span>Gastronomía</span></div>
-                        <i class="fas fa-chevron-right chevron"></i>
-                    </div>
-                    <ul id="lista-gastronomia" class="lista-lugares"></ul>
-                </div>
-                <div class="categoria-item" id="cat-hospedaje">
-                    <div class="categoria-header" onclick="toggleAcordeon('cat-hospedaje')">
-                        <div class="cat-label"><div class="cat-icon-bg c-indigo"><i class="fas fa-bed"></i></div><span>Alojamiento</span></div>
-                        <i class="fas fa-chevron-right chevron"></i>
-                    </div>
-                    <ul id="lista-hospedaje" class="lista-lugares"></ul>
-                </div>
-                <div class="categoria-item" id="cat-servicios">
-                    <div class="categoria-header" onclick="toggleAcordeon('cat-servicios')">
-                        <div class="cat-label"><div class="cat-icon-bg c-red"><i class="fas fa-plus-circle"></i></div><span>Servicios y Salud</span></div>
-                        <i class="fas fa-chevron-right chevron"></i>
-                    </div>
-                    <ul id="lista-servicios" class="lista-lugares"></ul>
-                </div>
-            </div>
-            <div style="height: 120px;"></div> 
-        </div>
-    </div>
-
-<<<<<<< main
-        <div class="sidebar-footer">
-            <p>Desarrollado con <i class="fas fa-heart" style="color:#ff4757"></i> por <strong>TechFix</strong></p>
-            <p style="font-size:0.7rem; opacity:0.7;">Versión Capital 6.0</p>
-=======
-    <div class="floating-controls">
-        <button onclick="centrarMapaUsuario()" class="fab-btn"><i class="fas fa-crosshairs"></i></button>
-        <button onclick="abrirSOS()" class="fab-btn sos"><i class="fas fa-bell"></i></button>
-    </div>
-
-    <div id="ficha-lugar" class="ficha-container"></div>
+    <div id="ficha-lugar"></div>
+    <nav class="bottom-tab-bar">
+        <button class="tab-btn active" onclick="cambiarTab('map')"><i class="fas fa-map-marked-alt"></i><span>Mapa</span></button>
+        <button class="tab-btn" onclick="cambiarTab('list')"><i class="fas fa-compass"></i><span>Explorar</span></button>
+        <button class="tab-btn" onclick="cambiarTab('profile')"><i class="fas fa-user"></i><span>Perfil</span></button>
+    </nav>
     <div id="toast-container"></div>
-
-    <div id="modal-sos" class="modal">
-        <div class="modal-content sos-content">
-            <span class="close-btn" onclick="cerrarModal('modal-sos')">×</span>
-            <div class="sos-header"><i class="fas fa-ambulance pulse-red"></i><h2>Emergencia</h2></div>
-            <div class="sos-location-box">
-                <p>Ubicación actual:</p>
-                <div id="sos-direccion-text" class="address-text">Obteniendo coordenadas...</div>
-                <button onclick="compartirWpSOS()" class="btn-whatsapp"><i class="fab fa-whatsapp"></i> Enviar por WhatsApp</button>
-            </div>
-            <div class="grid-sos">
-                <a href="tel:911" class="btn-sos-call policia">Policía (911)</a>
-                <a href="tel:107" class="btn-sos-call hospital">Ambulancia (107)</a>
-            </div>
->>>>>>> local
-        </div>
-    </div>
-
-    <div id="modal-info" class="modal">
-        <div class="modal-content">
-           <span class="close-btn" onclick="cerrarModal('modal-info')">×</span>
-           <h3 style="margin-top:0;">🚌 Transporte Urbano</h3>
-           <div id="contenedor-horarios" class="horarios-wrapper"></div>
-       </div>
-    </div>
-
-    <div id="modal-eventos" class="modal">
-       <div class="modal-content">
-           <span class="close-btn" onclick="cerrarModal('modal-eventos')">×</span>
-           <h2 style="margin-top:0;">📅 Agenda Cultural</h2>
-           <div id="eventos-container" class="timeline"></div>
-       </div>
-    </div>
-
-    <div id="modal-logros" class="modal">
-        <div class="modal-content" style="text-align:center;">
-            <span class="close-btn" onclick="cerrarModal('modal-logros')">×</span>
-            <h2>🏆 Tus Logros</h2>
-            <p style="color:var(--text-sec); font-size:0.9rem;">Visita lugares y haz "Check-in" para ganar medallas.</p>
-            <div id="logros-container" style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-top:20px;">
-                </div>
-        </div>
-    </div>
-
-    <div id="modal-qr" class="modal">
-       <div class="modal-content" style="text-align:center;">
-           <span class="close-btn" onclick="cerrarModal('modal-qr')">×</span>
-           <h2>Comparte la App</h2>
-           <img id="qr-image" src="" alt="QR" style="width:200px; height:200px; margin-top:15px; border-radius:10px;">
-           <p style="margin-top:10px; font-size:0.9rem; color:var(--text-sec)">Escanea para abrir en otro celular</p>
-       </div>
-    </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
-    <script src="script.js"></script>
-
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./service-worker.js').catch(err => console.log('Error SW:', err));
-            });
-        }
-    </script>
+    <script type="module" src="script.js"></script>
 </body>
 </html>
