@@ -16,6 +16,79 @@ const CONFIG = {
     gpsOptions: { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
 };
 
+/* ==========================================
+   ✅ ADAPTADOR JSON (NUEVO + VIEJO + MIX)
+   - NUEVO: [ { turismo:[], museo:[], paseos:[], Playa:[], hotel:[], salud:[] } ]
+           coords: lat_lng: [lat,lng]
+   - VIEJO: { lugares:[...], eventos:[...], cupones_disponibles:[...] }
+           coords: lat / lng
+   - MIX: items con lat/lng aunque estén agrupados
+   ========================================== */
+
+function normalizeCategoriaKey(key) {
+  return String(key || "").trim().toLowerCase();
+}
+
+function flattenLugaresAnyFormat(data) {
+  // Caso VIEJO: { lugares:[...] }
+  if (data && Array.isArray(data.lugares)) {
+    return data.lugares.map((l) => ({
+      ...l,
+      categoria: normalizeCategoriaKey(l.categoria || "general"),
+      lat:
+        typeof l.lat === "number"
+          ? l.lat
+          : Array.isArray(l.lat_lng)
+          ? l.lat_lng[0]
+          : undefined,
+      lng:
+        typeof l.lng === "number"
+          ? l.lng
+          : Array.isArray(l.lat_lng)
+          ? l.lat_lng[1]
+          : undefined,
+    }));
+  }
+
+  // Caso NUEVO: [ { turismo:[], ... } ] o { turismo:[], ... }
+  const root = Array.isArray(data) ? (data[0] || {}) : (data || {});
+  const out = [];
+
+  Object.keys(root).forEach((groupKey) => {
+    const arr = root[groupKey];
+    if (!Array.isArray(arr)) return;
+
+    const categoria = normalizeCategoriaKey(groupKey);
+
+    arr.forEach((item) => {
+      const coords = item?.lat_lng;
+
+      const lat =
+        Array.isArray(coords) && typeof coords[0] === "number"
+          ? coords[0]
+          : typeof item.lat === "number"
+          ? item.lat
+          : undefined;
+
+      const lng =
+        Array.isArray(coords) && typeof coords[1] === "number"
+          ? coords[1]
+          : typeof item.lng === "number"
+          ? item.lng
+          : undefined;
+
+      out.push({
+        ...item,
+        categoria, // 👈 categoría desde el grupo
+        lat,
+        lng,
+      });
+    });
+  });
+
+  return out;
+}
+
 /* 3. ESTADO DE LA APP (Memoria) */
 let state = {
     map: null,
@@ -48,25 +121,18 @@ async function initApp() {
     setupEventListeners();
 
     // --- ESCUCHADOR DE SESIÓN (LOGIN/LOGOUT) ---
-    // Esto detecta automáticamente si el usuario entró o salió
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            // USUARIO CONECTADO
             state.currentUser = user;
             console.log("✅ Conectado:", user.email);
             
-            // Ocultar login y mostrar perfil
             document.getElementById('auth-container').style.display = 'none';
             document.getElementById('user-profile-content').style.display = 'block';
             
-            // Descargar sus datos de la nube
             await cargarDatosUsuario(user);
         } else {
-            // USUARIO DESCONECTADO
             state.currentUser = null;
-            
-            // Mostrar login y ocultar perfil
-            document.getElementById('auth-container').style.display = 'flex'; // Flex para centrar
+            document.getElementById('auth-container').style.display = 'flex';
             document.getElementById('user-profile-content').style.display = 'none';
         }
     });
@@ -76,9 +142,11 @@ async function initApp() {
         const resp = await fetch('lugares.json');
         const data = await resp.json();
         
-        // Pequeño delay para asegurar que el mapa cargó
         setTimeout(() => {
-            state.lugares = data.lugares || [];
+            // ✅ ahora soporta cualquiera de los dos formatos
+            state.lugares = flattenLugaresAnyFormat(data);
+
+            // ✅ compatibilidad: si el JSON es viejo, siguen existiendo.
             state.cupones = data.cupones_disponibles || [];
             state.eventos = data.eventos || [];
             
@@ -90,13 +158,12 @@ async function initApp() {
         }, 500);
         
     } catch (e) {
-        console.warn('⚠️ Error cargando JSON o modo offline');
+        console.warn('⚠️ Error cargando JSON o modo offline', e);
         showToast("Estás navegando sin conexión");
     }
 
     iniciarGPS();
     
-    // Manejo del botón "Atrás" del celular
     window.addEventListener('popstate', (event) => {
         if (document.getElementById('ficha-lugar').classList.contains('open')) {
             cerrarFicha(false);
@@ -122,9 +189,8 @@ function registerServiceWorker() {
    GESTIÓN DE USUARIOS (AUTH & FIRESTORE)
    ========================================== */
 
-let isRegisterMode = false; // ¿Está en modo registro?
+let isRegisterMode = false;
 
-// 1. Cambiar visualmente entre "Iniciar Sesión" y "Crear Cuenta"
 window.toggleAuthMode = () => {
     isRegisterMode = !isRegisterMode;
     
@@ -135,35 +201,28 @@ window.toggleAuthMode = () => {
     const btnToggle = document.getElementById('btn-toggle');
 
     if (isRegisterMode) {
-        // MODO REGISTRO
         title.innerText = "Crear Cuenta";
         subtitle.innerText = "Únete a Ruta Correntina gratis.";
         btnSubmit.innerText = "Registrarse";
-        btnSubmit.style.background = "#34C759"; // Verde
+        btnSubmit.style.background = "#34C759";
         toggleText.innerText = "¿Ya tienes cuenta?";
         btnToggle.innerText = "Volver a Iniciar Sesión";
     } else {
-        // MODO LOGIN
         title.innerText = "Bienvenido";
         subtitle.innerText = "Inicia sesión para continuar.";
         btnSubmit.innerText = "Iniciar Sesión";
-        btnSubmit.style.background = "#007AFF"; // Azul
+        btnSubmit.style.background = "#007AFF";
         toggleText.innerText = "¿Es tu primera vez aquí?";
         btnToggle.innerText = "Crear una cuenta nueva";
     }
 };
 
-// 2. Manejar el envío del formulario
 window.handleSubmit = (e) => {
     e.preventDefault();
-    if (isRegisterMode) {
-        ejecutarRegistro();
-    } else {
-        ejecutarLogin();
-    }
+    if (isRegisterMode) ejecutarRegistro();
+    else ejecutarLogin();
 };
 
-// 3. Ejecutar Login
 async function ejecutarLogin() {
     const email = document.getElementById('email-input').value;
     const pass = document.getElementById('pass-input').value;
@@ -176,7 +235,6 @@ async function ejecutarLogin() {
     }
 }
 
-// 4. Ejecutar Registro
 async function ejecutarRegistro() {
     const email = document.getElementById('email-input').value;
     const pass = document.getElementById('pass-input').value;
@@ -185,15 +243,12 @@ async function ejecutarRegistro() {
     if (pass.length < 6) { alert("La contraseña debe tener 6 caracteres o más."); return; }
 
     try {
-        // Crear usuario en Auth
         const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
         const user = userCredential.user;
         
-        // Preguntar nombre
         const nombre = prompt("¡Cuenta creada! ¿Cómo quieres llamarte?", "Viajero");
         await updateProfile(user, { displayName: nombre });
 
-        // Crear ficha en base de datos (Firestore)
         await setDoc(doc(db, "users", user.uid), {
             email: email,
             nombre: nombre,
@@ -208,7 +263,6 @@ async function ejecutarRegistro() {
     }
 }
 
-// 5. Cargar datos del usuario desde la nube
 async function cargarDatosUsuario(user) {
     try {
         const docRef = doc(db, "users", user.uid);
@@ -216,11 +270,8 @@ async function cargarDatosUsuario(user) {
 
         if (docSnap.exists()) {
             const data = docSnap.data();
-            
-            // Mezclar datos: Si hay datos en la nube, los usamos
             state.visitados = data.visitados || [];
             
-            // Actualizar interfaz del perfil
             const nameEl = document.getElementById('user-name');
             const avEl = document.getElementById('user-avatar');
             
@@ -234,13 +285,12 @@ async function cargarDatosUsuario(user) {
     }
 }
 
-// 6. Cerrar Sesión
 window.cerrarSesion = () => {
     signOut(auth).then(() => {
         showToast("Sesión cerrada.");
-        state.visitados = []; // Limpiar memoria local
+        state.visitados = [];
         updateStats();
-        setTimeout(() => window.location.reload(), 500); // Recargar para limpiar todo
+        setTimeout(() => window.location.reload(), 500);
     });
 };
 
@@ -267,30 +317,27 @@ function updateMapTiles() {
     L.tileLayer(url, { maxZoom: 19 }).addTo(state.map);
 }
 
-// Filtro con espera (Debounce) para que no se trabe al escribir
+// Filtro con espera (Debounce)
 let timeoutBusqueda;
 window.filtrarInput = (val) => {
     clearTimeout(timeoutBusqueda);
     timeoutBusqueda = setTimeout(() => ejecutarFiltro(val), 300);
 }
 
-// Filtro rápido por botones
 window.filtrarBoton = (categoria, boton) => {
-    // Cambiar estilo de botones
     document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
     if(boton) boton.classList.add('active');
-    
     ejecutarFiltro(categoria);
 }
 
 function ejecutarFiltro(criterio) {
-    const txt = criterio.toLowerCase();
+    const txt = String(criterio || '').toLowerCase();
     
     const res = state.lugares.filter(l => 
         txt === 'todos' || 
         (l.categoria && l.categoria.toLowerCase().includes(txt)) || 
-        l.nombre.toLowerCase().includes(txt) ||
-        (l.tags && l.tags.some(tag => tag.includes(txt)))
+        (l.nombre && l.nombre.toLowerCase().includes(txt)) ||
+        (l.tags && l.tags.some(tag => String(tag).toLowerCase().includes(txt)))
     );
     
     renderMarkers(res);
@@ -300,8 +347,14 @@ function ejecutarFiltro(criterio) {
     }
 
     if (res.length > 0 && txt !== 'todos' && txt !== '') {
-        const grupo = L.featureGroup(res.map(l => L.marker([l.lat, l.lng])));
-        setTimeout(() => state.map.flyToBounds(grupo.getBounds().pad(0.2), { duration: 1.5 }), 50);
+        const grupo = L.featureGroup(
+            res
+                .filter(l => typeof l.lat === 'number' && typeof l.lng === 'number')
+                .map(l => L.marker([l.lat, l.lng]))
+        );
+        if (grupo.getLayers().length > 0) {
+            setTimeout(() => state.map.flyToBounds(grupo.getBounds().pad(0.2), { duration: 1.5 }), 50);
+        }
     } else if (txt === 'todos') {
         state.map.flyTo([-27.469, -58.830], 14);
     }
@@ -313,7 +366,6 @@ window.triggerCheckIn = () => {
     const btn = document.getElementById('btn-checkin-dynamic');
     if(btn.classList.contains('visited-state')) return;
     
-    // Vibración
     if(navigator.vibrate) navigator.vibrate(15);
     
     if(btn.classList.contains('enabled')) { 
@@ -340,10 +392,8 @@ async function confirmarCheckIn(fotoBase64) {
         foto: fotoBase64 
     };
     
-    // Guardar en memoria local
     state.visitados.push(nuevoCheckin);
     
-    // Guardar en NUBE (si está conectado)
     if (state.currentUser) {
         try {
             const userRef = doc(db, "users", state.currentUser.uid);
@@ -371,7 +421,12 @@ function actualizarBotonCheckin() {
         return;
     }
     
-    const dist = getDistance(state.userCoords.lat, state.userCoords.lng, state.currentPlace.lat, state.currentPlace.lng);
+    const dist = getDistance(
+        state.userCoords.lat,
+        state.userCoords.lng,
+        state.currentPlace.lat,
+        state.currentPlace.lng
+    );
     
     if (dist <= CONFIG.radioCheckin) {
         btn.className = "btn-checkin-big enabled photo-mode";
@@ -388,8 +443,17 @@ function actualizarBotonCheckin() {
 function renderMarkers(lista) {
     state.markersCluster.clearLayers();
     lista.forEach(l => {
+        // ✅ evita explotar si no hay coords
+        if (typeof l.lat !== 'number' || typeof l.lng !== 'number') return;
+
         const catClass = l.categoria ? l.categoria.toLowerCase() : 'default';
-        const icon = L.divIcon({ className: 'custom-pin', html: `<div class="pin-head ${catClass}"><i class="fas ${getCatIcon(l.categoria)}"></i></div><div class="pin-point" style="border-top-color: white"></div>`, iconSize: [40, 50], iconAnchor: [20, 50] });
+        const icon = L.divIcon({
+            className: 'custom-pin',
+            html: `<div class="pin-head ${catClass}"><i class="fas ${getCatIcon(l.categoria)}"></i></div><div class="pin-point" style="border-top-color: white"></div>`,
+            iconSize: [40, 50],
+            iconAnchor: [20, 50]
+        });
+
         const m = L.marker([l.lat, l.lng], { icon: icon });
         m.on('click', () => abrirFicha(l));
         state.markersCluster.addLayer(m);
@@ -403,7 +467,7 @@ function renderFeed(lista) {
     const destacados = lista.sort((a,b) => (b.estrellas || 0) - (a.estrellas || 0));
     
     container.innerHTML = destacados.map(l => {
-        const tieneImagen = l.img && !l.img.includes('logo.png');
+        const tieneImagen = l.img && !String(l.img).includes('logo.png') && String(l.img).trim() !== '';
         const bgStyle = tieneImagen ? `background-image: url('${l.img}');` : `background: linear-gradient(45deg, #007AFF, #00C6FF);`; 
         const isPremium = l.estrellas === 5 ? 'premium' : '';
         
@@ -432,7 +496,6 @@ function updateStats() {
     if(elVis) elVis.innerText = totalVisitados;
     if(elNiv) elNiv.innerText = nivelActual;
 
-    // Badges (Insignias)
     const badgeContainer = document.getElementById('badges-container');
     if (badgeContainer) {
         let badgesHTML = '';
@@ -447,7 +510,6 @@ function updateStats() {
         badgeContainer.innerHTML = badgesHTML;
     }
     
-    // Pasaporte
     const pasaporteGrid = document.getElementById('pasaporte-grid');
     if (pasaporteGrid) {
         const fotos = state.visitados.filter(v => v.foto);
@@ -464,12 +526,20 @@ function updateStats() {
 
 // --- UTILIDADES ---
 
-window.abrirFichaNombre = (n) => { const l = state.lugares.find(x=>x.nombre===n); if(l) { cambiarTab('map', false); setTimeout(() => { state.map.flyTo([l.lat, l.lng], 16); abrirFicha(l); }, 300); } };
+window.abrirFichaNombre = (n) => {
+    const l = state.lugares.find(x => x.nombre === n);
+    if(l) {
+        cambiarTab('map', false);
+        setTimeout(() => {
+            if (typeof l.lat === 'number' && typeof l.lng === 'number') state.map.flyTo([l.lat, l.lng], 16);
+            abrirFicha(l);
+        }, 300);
+    }
+};
 
 window.cambiarTab = (tabId, pushHistory = true) => {
     if (document.getElementById('ficha-lugar').classList.contains('open')) cerrarFicha(false);
     
-    // Animación de cambio de pestaña
     document.querySelectorAll('.app-view').forEach(v => { 
         v.classList.remove('active'); 
         setTimeout(() => { if(!v.classList.contains('active')) v.style.display = 'none'; }, 200); 
@@ -479,7 +549,6 @@ window.cambiarTab = (tabId, pushHistory = true) => {
     target.style.display = 'block';
     setTimeout(() => { target.style.opacity = '1'; target.classList.add('active'); }, 50);
     
-    // Botones de abajo
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     const mapIdx = {'map':0, 'list':1, 'profile':2};
     document.querySelectorAll('.tab-btn')[mapIdx[tabId]].classList.add('active');
@@ -503,8 +572,10 @@ window.iniciarGPS = () => {
 window.abrirFicha = (lugar) => {
     state.currentPlace = lugar;
     const isFav = (state.favoritos || []).includes(lugar.nombre);
-    const tieneImagen = lugar.img && !lugar.img.includes('logo.png');
-    const imgStyle = tieneImagen ? `<img src="${lugar.img}" loading="lazy">` : `<div style="width:100%; height:100%; background: linear-gradient(45deg, #007AFF, #00C6FF); display:flex; align-items:center; justify-content:center;"><i class="fas ${getCatIcon(lugar.categoria)}" style="font-size:4rem; color:white; opacity:0.5;"></i></div>`;
+    const tieneImagen = lugar.img && !String(lugar.img).includes('logo.png') && String(lugar.img).trim() !== '';
+    const imgStyle = tieneImagen
+        ? `<img src="${lugar.img}" loading="lazy">`
+        : `<div style="width:100%; height:100%; background: linear-gradient(45deg, #007AFF, #00C6FF); display:flex; align-items:center; justify-content:center;"><i class="fas ${getCatIcon(lugar.categoria)}" style="font-size:4rem; color:white; opacity:0.5;"></i></div>`;
 
     const html = `
         <div class="ficha-hero">
@@ -527,8 +598,19 @@ window.abrirFicha = (lugar) => {
     actualizarBotonCheckin();
 };
 
-window.cerrarFicha = (goBack = true) => { document.getElementById('ficha-lugar').classList.remove('open'); state.currentPlace = null; if (goBack && window.history.state && window.history.state.modal === 'ficha') { window.history.back(); } };
-window.centrarMapaUsuario = () => { if(state.userCoords) state.map.flyTo([state.userCoords.lat, state.userCoords.lng], 16); else showToast("Buscando señal GPS..."); };
+window.cerrarFicha = (goBack = true) => {
+    document.getElementById('ficha-lugar').classList.remove('open');
+    state.currentPlace = null;
+    if (goBack && window.history.state && window.history.state.modal === 'ficha') {
+        window.history.back();
+    }
+};
+
+window.centrarMapaUsuario = () => {
+    if(state.userCoords) state.map.flyTo([state.userCoords.lat, state.userCoords.lng], 16);
+    else showToast("Buscando señal GPS...");
+};
+
 window.showBadgeInfo = (nombre, desc) => { showToast(`🏆 ${nombre}: ${desc}`); }
 
 function setupNetworkStatus() {
@@ -563,8 +645,37 @@ async function initWeather() {
     } catch (e) { console.warn("Clima no disponible"); }
 }
 
-function setupEventListeners() { document.getElementById('dark-mode-toggle').addEventListener('click', () => { document.body.classList.toggle('dark-mode'); localStorage.setItem('theme', document.body.classList.contains('dark-mode')?'dark':'light'); updateMapTiles(); }); }
+function setupEventListeners() {
+    document.getElementById('dark-mode-toggle').addEventListener('click', () => {
+        document.body.classList.toggle('dark-mode');
+        localStorage.setItem('theme', document.body.classList.contains('dark-mode')?'dark':'light');
+        updateMapTiles();
+    });
+}
+
 function initTheme() { if(localStorage.getItem('theme')==='dark') document.body.classList.add('dark-mode'); }
 function showToast(m) { const t=document.createElement('div'); t.className='toast'; t.innerText=m; document.getElementById('toast-container').appendChild(t); setTimeout(()=>t.remove(),3000); }
-function getCatIcon(c) { return {'turismo':'fa-camera','gastronomia':'fa-utensils','hospedaje':'fa-bed','shopping':'fa-shopping-bag'}[c?.toLowerCase()] || 'fa-map-marker-alt'; }
-function getDistance(lat1,lon1,lat2,lon2) { const R=6371e3; const dLat=(lat2-lat1)*Math.PI/180; const dLon=(lon2-lon1)*Math.PI/180; const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2; return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)); }
+
+// ✅ íconos actualizados para tus categorías nuevas
+function getCatIcon(c) {
+    return {
+        'turismo':'fa-camera',
+        'museo':'fa-landmark',
+        'paseos':'fa-walking',
+        'playa':'fa-umbrella-beach',
+        'hotel':'fa-bed',
+        'salud':'fa-hospital',
+        // compat viejo
+        'gastronomia':'fa-utensils',
+        'hospedaje':'fa-bed',
+        'shopping':'fa-shopping-bag'
+    }[String(c||'').toLowerCase()] || 'fa-map-marker-alt';
+}
+
+function getDistance(lat1,lon1,lat2,lon2) {
+    const R=6371e3;
+    const dLat=(lat2-lat1)*Math.PI/180;
+    const dLon=(lon2-lon1)*Math.PI/180;
+    const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
