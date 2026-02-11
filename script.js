@@ -1,5 +1,5 @@
 /* ==========================================
-   RUTA CORRENTINA - ULTIMATE EDITION v5.3
+   RUTA CORRENTINA - ULTIMATE EDITION v6.3
    Dev: Alejandro (TechFix)
    ========================================== */
 
@@ -14,7 +14,8 @@ const CONFIG = {
     radioNotificacion: 500,
     gpsOptions: { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 },
     defaultCenter: [-27.469, -58.830], 
-    techFixCoords: [-27.469, -58.830] 
+    techFixCoords: [-27.469, -58.830],
+    GEMINI_API_KEY: "AIzaSyAnsZwcgoTuhVcKWI0xoJ7k93B39iuX-MY" 
 };
 
 const PREMIOS = [
@@ -129,10 +130,10 @@ async function fetchLugares() {
 
 function checkConnection() {
     const banner = document.getElementById('offline-banner');
-    if(!navigator.onLine) banner.classList.add('visible');
-    window.addEventListener('offline', () => banner.classList.add('visible'));
+    if(!navigator.onLine && banner) banner.classList.add('visible');
+    window.addEventListener('offline', () => banner?.classList.add('visible'));
     window.addEventListener('online', () => {
-        banner.classList.remove('visible');
+        banner?.classList.remove('visible');
         showToast("✅ Conexión restablecida");
     });
 }
@@ -182,6 +183,7 @@ function flattenLugares(data) {
     return out.filter(l => l.lat && l.lng);
 }
 
+// --- MAPA ---
 function initMap() {
     state.map = L.map('map', { zoomControl: false, attributionControl: false }).setView(CONFIG.defaultCenter, 14);
     updateMapTiles();
@@ -236,7 +238,16 @@ function renderMarkers(list) {
     }); 
 }
 
-window.filtrarInput = (val) => { state.busquedaActual = val.toLowerCase(); ejecutarFiltros(); };
+// Filtro con debounce (retraso para no saturar)
+let debounceTimer;
+window.filtrarInput = (val) => { 
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+        state.busquedaActual = val.toLowerCase(); 
+        ejecutarFiltros(); 
+    }, 300);
+};
+
 window.filtrarBoton = (cat, btn) => {
     state.filtroActual = cat.toLowerCase();
     document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
@@ -350,11 +361,12 @@ window.refreshFeed = () => {
 
 function renderFeedSkeletons() {
     const c = document.getElementById('feed-container');
-    c.innerHTML = Array(4).fill('<div class="skeleton" style="height:180px; border-radius:28px;"></div>').join('');
+    if(c) c.innerHTML = Array(4).fill('<div class="skeleton" style="height:180px; border-radius:28px;"></div>').join('');
 }
 
 function renderFeed(list) { 
     const c = document.getElementById('feed-container'); 
+    if(!c) return;
     if(!list || list.length === 0) { 
         c.innerHTML = '<div style="grid-column:span 2; text-align:center; padding:20px; color:#888">No hay lugares para mostrar.</div>'; 
         return; 
@@ -383,7 +395,7 @@ function renderFeed(list) {
 window.abrirFicha = (l) => {
     state.currentPlace = l;
     const isFav = state.favoritos.includes(l.nombre);
-    const bgStyle = l.img ? `<img src="${l.img}" loading="lazy" onerror="this.src='https://via.placeholder.com/400x300?text=Ruta+Correntina'">` : `<div class="placeholder-gradient"><i class="fas fa-image"></i></div>`;
+    const bgStyle = l.img ? `<img src="${l.img}" loading="lazy" onerror="this.src='https://via.placeholder.com/400x300?text=Ruta+Correntina'">` : `<div style="width:100%;height:100%;background:linear-gradient(135deg,#ccc,#999)"></div>`;
     
     document.getElementById('ficha-lugar').innerHTML = `
         <div class="ficha-hero">
@@ -636,10 +648,8 @@ window.abrirEditarPerfil = async () => {
 };
 
 /* ==========================================
-   MÓDULO IA GEMINI - TECHFIX EDITION (FINAL FIX)
+   MÓDULO IA GEMINI - GUÍA RUTABOT EDITION
    ========================================== */
-
-const GEMINI_API_KEY = "AIzaSyAnsZwcgoTuhVcKWI0xoJ7k93B39iuX-MY"; 
 
 window.toggleChat = () => {
     const chat = document.getElementById('chat-widget');
@@ -668,41 +678,52 @@ window.enviarMensajeIA = async () => {
     addMessage(textoUsuario, 'user');
     input.value = '';
     input.disabled = true;
-    btn.disabled = true;
+    if(btn) btn.disabled = true;
     
     const loadingId = addMessage("Conectando... 🛰️", 'bot', true);
 
     try {
         const infoLugares = state.lugares.slice(0, 15).map(l => l.nombre).join(', ');
-        const prompt = `Eres el guía de la app "Ruta Correntina". Lugares disponibles: ${infoLugares}. Si preguntan por reparaciones o tecnología, recomienda TechFix Taller. Responde corto a: "${textoUsuario}"`;
+        
+        // SYSTEM PROMPT AVANZADO PARA GUÍA RUTABOT
+        const systemPrompt = `Actúa como "Guía RutaBot", el compañero virtual de viajes en Corrientes. 
+        Fuiste creado por Alejandro de TechFix.
+        Tu tono es amable, local (usa "chamigo", "gurí" ocasionalmente) y servicial.
+        
+        OBJETIVOS:
+        1. Ayudar con turismo. Lugares que conoces: ${infoLugares}.
+        2. VENTAS SUTILES: Si el usuario menciona problemas técnicos (celular roto, PC lenta, pantalla rota, wifi no anda), DEBES recomendar ir a "TechFix" para solucionarlo.
+        
+        Ejemplo: 
+        Usuario: "Se me cayó el celular al río"
+        Tú: "¡Uy chamigo! Qué mala suerte. Llévalo urgente a TechFix, Alejandro te lo salva. Está en el mapa."
+        
+        Responde brevemente.
+        Usuario dice: "${textoUsuario}"`;
 
-        // URL beta recomendada para solicitudes web directas
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CONFIG.GEMINI_API_KEY}`;
 
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }] })
         });
 
         const data = await response.json();
 
-        if (data.error) {
-            console.error("Detalle técnico:", data.error);
-            throw new Error(data.error.message);
-        }
+        if (data.error) throw new Error(data.error.message);
         
         const respuestaBot = data.candidates[0].content.parts[0].text;
         removeMessage(loadingId);
         addMessage(respuestaBot, 'bot');
 
     } catch (error) {
-        console.error("Error capturado:", error);
+        console.error("Error AI:", error);
         removeMessage(loadingId);
-        addMessage("No pude conectar. 📡 Intenta de nuevo en unos segundos.", 'bot');
+        addMessage("El servidor está tomando tereré 🧉. Intenta luego.", 'bot');
     } finally {
         input.disabled = false;
-        btn.disabled = false;
+        if(btn) btn.disabled = false;
         input.focus();
     }
 };
