@@ -6,130 +6,291 @@
     <title>Ruta Correntina Ultimate</title>
     <meta name="theme-color" content="#007AFF">
     <link rel="manifest" href="manifest.json">
+    
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="offline-banner"><i class="fas fa-wifi-slash"></i> Sin conexión</div>
+
+    <div id="splash-screen">
+        <div class="splash-content">
+            <div class="logo-pulse"><i class="fas fa-map-marked-alt"></i></div>
+            <h1>Ruta Correntina</h1>
+            <p>TECHFIX EDITION v5.3 + AI</p>
+        </div>
+    </div>
+
+    <div id="offline-banner"><i class="fas fa-wifi-slash"></i> Sin conexión - Guardando localmente</div>
 
     <div id="view-map" class="app-view active">
         <div id="map"></div>
+        
         <div class="top-bar-floating">
             <div class="search-box-glass">
                 <i class="fas fa-search"></i>
-                <input type="text" id="buscador-input" placeholder="¿A dónde vamos?" onkeyup="filtrarInput(this.value)">
-                <div id="weather-widget" class="weather-in-bar" style="display:none;"><i class="fas fa-sun"></i><span>--°C</span></div>
+                <input type="text" id="buscador-input" placeholder="¿A dónde vamos hoy?" onkeyup="filtrarInput(this.value)">
+                <div id="weather-widget" class="weather-in-bar">
+                    <i class="fas fa-cloud-sun"></i> <span id="temp-val">--°</span>
+                </div>
             </div>
+            
             <div class="filter-scroll">
                 <button class="filter-pill active" onclick="filtrarBoton('todos', this)">Todo</button>
+                <button class="filter-pill" onclick="filtrarBoton('abierto', this)">🕒 Abierto</button>
+                <button class="filter-pill" onclick="filtrarBoton('techfix', this)">🛠️ TechFix</button> 
                 <button class="filter-pill" onclick="filtrarBoton('turismo', this)">📸 Turismo</button>
                 <button class="filter-pill" onclick="filtrarBoton('gastronomia', this)">🍔 Comida</button>
-                <button class="filter-pill" onclick="filtrarBoton('hospedaje', this)">🛏️ Hotel</button>
+                <button class="filter-pill" onclick="filtrarBoton('playa', this)">🏖️ Playa</button>
             </div>
         </div>
+
         <div class="map-controls">
-            <button onclick="centrarMapaUsuario()" class="btn-float glass-btn"><i class="fas fa-location-arrow"></i></button>
+            <button onclick="centrarMapaUsuario()" class="btn-float glass-btn" aria-label="Mi Ubicación">
+                <i class="fas fa-location-arrow"></i>
+            </button>
         </div>
+
         <div id="nav-ui-bottom" class="nav-island">
-            <div class="nav-content-wrapper" style="width: 100%;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div class="nav-data">
-                        <div class="nav-main-metric"><span id="nav-time">-- min</span><small id="nav-arrival">Calculando...</small></div>
-                        <div class="nav-secondary-metric"><i class="fas fa-walking"></i><span id="nav-dist">-- km</span></div>
+            <div class="nav-content-wrapper">
+                <div class="nav-data">
+                    <div class="nav-time-big"><span id="nav-time">-- min</span></div>
+                    <div class="nav-dist-small">
+                        <i class="fas fa-walking"></i> <span id="nav-dist">-- km</span>
                     </div>
-                    <div class="nav-actions"><button onclick="finalizarViaje()" class="btn-end-trip"><i class="fas fa-times"></i></button></div>
                 </div>
-                <button id="btn-toggle-steps" onclick="togglePasos()" style="display:none; width:100%; border:none; background:none; color:var(--primary); margin-top:10px;">Ver indicaciones <i class="fas fa-chevron-down"></i></button>
-                <div id="nav-steps-container" class="steps-container" style="display:none;"></div>
+                <div class="nav-actions">
+                    <button onclick="finalizarViaje()" class="btn-end-trip"><i class="fas fa-times"></i></button>
+                </div>
             </div>
         </div>
     </div>
 
-    <div id="view-list" class="app-view" style="display:none;">
-        <div class="view-header-padded"><h1>Descubre</h1><p>Lo mejor de Corrientes</p></div>
-        <div id="eventos-banner-container"></div>
-        <div class="section-title" style="padding: 10px 20px;"><h3 style="margin:0;">🗺️ Circuitos</h3></div>
-        <div class="rutas-scroll-inline">
-            <button onclick="iniciarRuta('historica')" class="ruta-card-inline"><div class="icon-ruta">🏛️</div><div><strong>Histórico</strong><small>40 min</small></div></button>
-            <button onclick="iniciarRuta('costanera')" class="ruta-card-inline"><div class="icon-ruta">🌅</div><div><strong>Costera</strong><small>25 min</small></div></button>
+    <div id="view-list" class="app-view">
+        <div class="explore-header">
+            <div class="header-texts">
+                <small id="date-display">Cargando fecha...</small>
+                <h1 id="greeting-display">Hola, Viajero</h1>
+            </div>
+            <div class="user-mini-badge" onclick="cambiarTab('profile')">
+                <img id="header-avatar" src="https://ui-avatars.com/api/?name=Viajero&background=007AFF&color=fff" alt="Perfil">
+            </div>
         </div>
-        <div class="section-title" style="padding: 20px;"><h3 style="margin:0;">Lugares</h3></div>
-        <div id="feed-container" class="feed-grid"></div>
-        <div style="height:100px;"></div>
+        
+        <div class="magic-container">
+            <button class="btn-magic-wide" onclick="destinoMagico()">
+                <div class="magic-icon"><i class="fas fa-wand-magic-sparkles"></i></div>
+                <div class="magic-text">
+                    <span>¿A dónde voy?</span>
+                    <small>Sorpréndeme ahora</small>
+                </div>
+                <i class="fas fa-chevron-right magic-arrow"></i>
+            </button>
+        </div>
+        
+        <div class="section-label">
+            <h3>Circuitos Rápidos</h3>
+            <a onclick="filtrarBoton('todos', null)">Ver todo</a>
+        </div>
+        <div class="rutas-scroll-modern">
+            <button onclick="iniciarRuta('techfix')" class="pill-cat techfix-glow">
+                <i class="fas fa-wrench"></i> TechFix
+            </button>
+            <button onclick="iniciarRuta('historica')" class="pill-cat orange-glow">
+                <i class="fas fa-landmark"></i> Histórico
+            </button>
+            <button onclick="iniciarRuta('costanera')" class="pill-cat blue-glow">
+                <i class="fas fa-water"></i> Costanera
+            </button>
+            <button onclick="filtrarBoton('gastronomia', null)" class="pill-cat yellow-glow">
+                <i class="fas fa-utensils"></i> Sabores
+            </button>
+        </div>
+        
+        <div class="section-label">
+            <h3>Destacados hoy</h3>
+            <button class="btn-refresh-mini" onclick="window.refreshFeed()"><i class="fas fa-sync-alt"></i></button>
+        </div>
+        
+        <div id="feed-container" class="feed-grid-modern">
+            </div>
+        
+        <div class="spacer-bottom"></div>
     </div>
 
-    <div id="view-profile" class="app-view" style="display:none;">
+    <div id="view-profile" class="app-view">
         
-        <div id="auth-container" style="display: block;">
-            <div class="auth-card">
-                <div class="auth-header">
-                    <div class="auth-icon-circle">
-                        <i class="fas fa-map-marked-alt"></i>
-                    </div>
-                    <h2 id="auth-title" class="auth-title">Bienvenido</h2>
-                    <p id="auth-subtitle" class="auth-subtitle">Inicia sesión para continuar</p>
-                </div>
-
-                <form id="auth-form" onsubmit="handleSubmit(event)">
-                    <div class="input-group-premium">
-                        <input type="email" id="email-input" class="input-premium" placeholder="Correo electrónico" required>
-                        <i class="fas fa-envelope input-icon"></i>
-                    </div>
-
-                    <div class="input-group-premium">
-                        <input type="password" id="pass-input" class="input-premium" placeholder="Contraseña" required>
-                        <i class="fas fa-lock input-icon"></i>
-                    </div>
-                    
-                    <button type="submit" id="btn-submit" class="btn-login-premium">
-                        Iniciar Sesión
-                    </button>
+        <div id="auth-container">
+            <div class="aurora-bg">
+                <div class="blob blob-1"></div>
+                <div class="blob blob-2"></div>
+            </div>
+            <div class="auth-card-glass">
+                <div class="logo-3d"><i class="fas fa-fingerprint"></i></div>
+                <h1>Identifícate</h1>
+                <p id="auth-header-text">Accede a tu pasaporte digital</p>
+                <form onsubmit="handleSubmit(event)" class="auth-form">
+                    <input type="email" id="email-input" class="input-minimal" placeholder="Email" required>
+                    <input type="password" id="pass-input" class="input-minimal" placeholder="Contraseña" required>
+                    <button type="submit" id="btn-submit" class="btn-premium-action">Entrar</button>
                 </form>
-
-                <div class="auth-footer">
-                    <p id="toggle-text" style="color: #8E8E93; font-size: 0.85rem; margin-bottom: 12px;">
-                        ¿Es tu primera vez aquí?
-                    </p>
-                    <button type="button" id="btn-toggle" onclick="toggleAuthMode()" class="btn-register-link">
-                        Crear una cuenta nueva
-                    </button>
-                </div>
+                <button onclick="toggleAuthMode()" class="btn-text-link" id="toggle-text">Crear cuenta</button>
             </div>
         </div>
 
         <div id="user-profile-content" style="display:none;">
-            <div class="profile-header">
-                <div class="avatar-circle"><img id="user-avatar" src="" alt="Avatar"></div>
-                <h2 id="user-name">Cargando...</h2>
-                <span class="role-badge">Turista</span>
-                <button onclick="cerrarSesion()" style="background:none; border:none; color:var(--danger); display:block; margin:15px auto; cursor:pointer;">Cerrar Sesión</button>
+            <div class="premium-layout">
+                
+                <div class="profile-header">
+                    <div class="user-info-row">
+                        <div class="avatar-container">
+                            <img id="user-avatar" src="" alt="Avatar">
+                            <div class="level-bubble" id="level-badge">Lv. 1</div>
+                        </div>
+                        <div class="user-text">
+                            <h2 id="user-name">Viajero</h2>
+                            <span class="role-tag" id="badge-role">TURISTA</span>
+                        </div>
+                    </div>
+                    <button class="btn-icon-circle" onclick="abrirEditarPerfil()"><i class="fas fa-cog"></i></button>
+                </div>
+
+                <div class="bento-grid">
+                    
+                    <div class="bento-card card-wallet-black" onclick="toggleCanje(true)">
+                        <div class="card-bg-shine"></div>
+                        <div class="wallet-top">
+                            <i class="fas fa-chip"></i>
+                            <span>TECHFIX ELITE</span>
+                        </div>
+                        <div class="wallet-balance">
+                            <span id="tech-points">0</span> <small>PTS</small>
+                        </div>
+                        <div class="wallet-bottom">
+                            <span>MEMBER SINCE 2026</span>
+                            <i class="fab fa-cc-visa"></i>
+                        </div>
+                    </div>
+
+                    <div class="bento-card stat-card">
+                        <div class="icon-circle blue"><i class="fas fa-map-marker-alt"></i></div>
+                        <span class="stat-num" id="stat-visitados">0</span>
+                        <span class="stat-label">Lugares</span>
+                    </div>
+
+                    <div class="bento-card stat-card" onclick="toggleRanking(true)">
+                        <div class="icon-circle gold"><i class="fas fa-trophy"></i></div>
+                        <span class="stat-num" id="stat-badges-count">0</span>
+                        <span class="stat-label">Ranking</span>
+                    </div>
+
+                    <div class="bento-card xp-card">
+                        <div class="xp-header">
+                            <span>Progreso de Nivel</span>
+                            <span id="current-xp">0 / 500 XP</span>
+                        </div>
+                        <div class="progress-track-premium">
+                            <div id="xp-bar-fill" class="progress-fill-premium"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="menu-group">
+                    <div class="menu-item" onclick="toggleRanking(true)">
+                        <div class="menu-left">
+                            <div class="menu-icon color-1"><i class="fas fa-medal"></i></div>
+                            <span class="menu-label">Mis Logros</span>
+                        </div>
+                        <i class="fas fa-chevron-right arrow"></i>
+                    </div>
+                    
+                    <div class="menu-item">
+                        <div class="menu-left">
+                            <div class="menu-icon color-2"><i class="fas fa-images"></i></div>
+                            <span class="menu-label">Galería Reciente</span>
+                        </div>
+                        <div class="menu-preview-imgs" id="passport-grid-mini"></div>
+                        <i class="fas fa-chevron-right arrow"></i>
+                    </div>
+
+                    <div class="menu-item" id="dark-mode-toggle">
+                        <div class="menu-left">
+                            <div class="menu-icon color-3"><i class="fas fa-moon"></i></div>
+                            <span class="menu-label">Modo Oscuro</span>
+                        </div>
+                        <div class="ios-switch"></div>
+                    </div>
+                </div>
+
+                <button onclick="cerrarSesion()" class="btn-logout-premium">
+                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                </button>
+                
+                <div class="spacer-bottom"></div>
             </div>
-            <div class="stats-row">
-                <div class="stat-box"><strong id="stat-visitados">0</strong><small>Check-ins</small></div>
-                <div class="stat-box"><strong id="stat-nivel">1</strong><small>Nivel</small></div>
-            </div>
-            <div class="section-title" style="padding:0 20px;"><h3 style="margin:0;">🎖️ Insignias</h3></div>
-            <div id="badges-container" class="badges-scroll"></div>
-            <div class="section-title" style="padding:20px;"><h3 style="margin:0;">📸 Mi Pasaporte</h3></div>
-            <div id="pasaporte-grid" class="pasaporte-grid"></div>
-            <div class="section-title" style="padding:20px;"><h3>Ajustes</h3></div>
-            <div class="settings-list">
-                <div class="setting-item" id="dark-mode-toggle"><div class="icon-box"><i class="fas fa-moon"></i></div><span>Modo Oscuro</span><div class="toggle-switch"></div></div>
-            </div>
-            <div style="height:100px;"></div>
         </div>
     </div>
 
-    <div id="ficha-lugar"></div>
+    <div id="modal-ranking" class="full-modal">
+        <div class="modal-header">
+            <h2>🏆 Top Viajeros</h2>
+            <button class="btn-close-modal" onclick="toggleRanking(false)"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body" id="ranking-list"></div>
+    </div>
+
+    <div id="modal-canje" class="full-modal">
+        <div class="modal-header">
+            <h2>🎟️ TechFix Store</h2>
+            <button class="btn-close-modal" onclick="toggleCanje(false)"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="points-display-large">
+                <span id="canje-points">0</span> PTS
+            </div>
+            <div id="canje-list" class="coupons-grid"></div>
+        </div>
+    </div>
+
+    <div id="chat-widget" class="chat-hidden">
+        <div class="chat-header">
+            <div class="chat-title">
+                <i class="fas fa-robot"></i> Asistente TechFix
+            </div>
+            <button onclick="toggleChat()" class="close-chat"><i class="fas fa-chevron-down"></i></button>
+        </div>
+        
+        <div id="chat-messages" class="chat-body">
+            <div class="bot-msg">
+                ¡Hola, viajero! 🧉 Soy la IA de Ruta Correntina. 
+                <br>Pregúntame por lugares para visitar o soluciones tecnológicas.
+            </div>
+        </div>
+        
+        <div class="chat-input-area">
+            <input type="text" id="user-msg" placeholder="Escribe aquí..." onkeypress="handleEnter(event)">
+            <button onclick="enviarMensajeIA()" id="btn-send-ai">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+    <button onclick="toggleChat()" class="btn-chat-float">
+        <i class="fas fa-comment-dots"></i>
+    </button>
+
     <nav class="bottom-tab-bar">
         <button class="tab-btn active" onclick="cambiarTab('map')"><i class="fas fa-map-marked-alt"></i><span>Mapa</span></button>
         <button class="tab-btn" onclick="cambiarTab('list')"><i class="fas fa-compass"></i><span>Explorar</span></button>
         <button class="tab-btn" onclick="cambiarTab('profile')"><i class="fas fa-user"></i><span>Perfil</span></button>
     </nav>
+
+    <div id="ficha-lugar"></div>
     <div id="toast-container"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

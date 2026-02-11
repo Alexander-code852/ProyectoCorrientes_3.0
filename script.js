@@ -1,22 +1,29 @@
 /* ==========================================
-   RUTA CORRENTINA ULTIMATE - CORE V3.5 (FINAL)
+   RUTA CORRENTINA - ULTIMATE EDITION v5.3
    Dev: Alejandro (TechFix)
    ========================================== */
 
-/* 1. IMPORTACIONES DE FIREBASE
-   Asegúrate de que firebase.js esté en la misma carpeta */
 import { 
-    db, auth, collection, doc, setDoc, getDoc, onAuthStateChanged, 
-    signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile 
+    db, auth, collection, doc, setDoc, getDoc, addDoc, query, where, orderBy, limit, serverTimestamp, getDocs,
+    onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile 
 } from './firebase.js';
 
-/* 2. CONFIGURACIÓN GENERAL */
+// --- CONFIGURACIÓN ---
 const CONFIG = {
-    radioCheckin: 500, // metros para dar OK al check-in
-    gpsOptions: { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+    radioCheckin: 400, 
+    radioNotificacion: 500,
+    gpsOptions: { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 },
+    defaultCenter: [-27.469, -58.830], 
+    techFixCoords: [-27.469, -58.830] 
 };
 
-/* 3. ESTADO DE LA APP (Memoria) */
+const PREMIOS = [
+    { id: 1, nombre: "10% OFF en Reparación", costo: 100 },
+    { id: 2, nombre: "Limpieza de Puerto Gratis", costo: 300 },
+    { id: 3, nombre: "Vidrio Templado Gratis", costo: 500 }
+];
+
+// --- ESTADO GLOBAL ---
 let state = {
     map: null,
     markersCluster: null,
@@ -24,236 +31,167 @@ let state = {
     routingControl: null,
     userCoords: null,
     currentPlace: null,
-    currentUser: null, // Aquí se guarda el usuario conectado
+    currentUser: null,
     lugares: [],
-    cupones: [],
-    eventos: [],
-    visitados: JSON.parse(localStorage.getItem('visitados_ultimate') || '[]'),
-    badges: [
-        { id: 'novato', nombre: 'Turista Novato', icon: '🎒', req: 1, desc: 'Tu primer check-in.' },
-        { id: 'explorador', nombre: 'Explorador', icon: '🧭', req: 5, desc: 'Visitaste 5 lugares.' },
-        { id: 'experto', nombre: 'Guía Local', icon: '👑', req: 10, desc: 'Visitaste 10 lugares.' },
-        { id: 'techfix', nombre: 'TechFix Fan', icon: '📱', req: 0, special: true, desc: 'Usuario verificado.' }
-    ]
+    lugaresFiltrados: [],
+    visitados: [],
+    favoritos: [],
+    filtroActual: 'todos',
+    busquedaActual: '',
+    notificadoTechFix: false
 };
 
-// INICIAR APP CUANDO CARGUE LA PÁGINA
+// --- INICIO ---
 document.addEventListener('DOMContentLoaded', initApp);
+window.addEventListener('online', flushOfflineQueue);
 
 async function initApp() {
-    registerServiceWorker(); // PWA Offline
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+    checkConnection();
+    setupHeaderDate();
+
+    setTimeout(() => {
+        const splash = document.getElementById('splash-screen');
+        if(splash) {
+            splash.style.opacity = '0';
+            setTimeout(() => splash.remove(), 600);
+        }
+    }, 1500);
+
     initMap();
     initTheme();
-    setupNetworkStatus();
-    setupEventListeners();
-
-    // --- ESCUCHADOR DE SESIÓN (LOGIN/LOGOUT) ---
-    // Esto detecta automáticamente si el usuario entró o salió
+    
     onAuthStateChanged(auth, async (user) => {
+        state.currentUser = user;
         if (user) {
-            // USUARIO CONECTADO
-            state.currentUser = user;
-            console.log("✅ Conectado:", user.email);
-            
-            // Ocultar login y mostrar perfil
-            document.getElementById('auth-container').style.display = 'none';
-            document.getElementById('user-profile-content').style.display = 'block';
-            
-            // Descargar sus datos de la nube
-            await cargarDatosUsuario(user);
+            toggleAuthUI(true);
+            await cargarPerfil(user);
         } else {
-            // USUARIO DESCONECTADO
-            state.currentUser = null;
-            
-            // Mostrar login y ocultar perfil
-            document.getElementById('auth-container').style.display = 'flex'; // Flex para centrar
-            document.getElementById('user-profile-content').style.display = 'none';
+            toggleAuthUI(false);
+            const localFavs = localStorage.getItem('localFavs');
+            state.favoritos = localFavs ? JSON.parse(localFavs) : [];
         }
     });
 
-    // Cargar Lugares desde el archivo JSON
+    await fetchLugares();
+    iniciarGPS();
+    fetchWeatherReal();
+}
+
+function setupHeaderDate() {
+    const d = new Date();
+    const options = { weekday: 'long', day: 'numeric', month: 'short' };
+    const dateStr = d.toLocaleDateString('es-ES', options);
+    const hour = d.getHours();
+    
+    let saludo = "Hola, Viajero";
+    if(hour >= 6 && hour < 12) saludo = "Buenos días ☀️";
+    else if(hour >= 12 && hour < 20) saludo = "Buenas tardes 🧉";
+    else saludo = "Buenas noches 🌙";
+
+    const dateEl = document.getElementById('date-display');
+    const greetEl = document.getElementById('greeting-display');
+    
+    if(dateEl) dateEl.innerText = dateStr;
+    if(greetEl) greetEl.innerText = saludo;
+}
+
+async function fetchLugares() {
+    renderFeedSkeletons();
     try {
         const resp = await fetch('lugares.json');
         const data = await resp.json();
+        state.lugares = flattenLugares(data);
         
-        // Pequeño delay para asegurar que el mapa cargó
-        setTimeout(() => {
-            state.lugares = data.lugares || [];
-            state.cupones = data.cupones_disponibles || [];
-            state.eventos = data.eventos || [];
-            
-            renderMarkers(state.lugares);
-            renderFeed(state.lugares);
-            renderEventBanner();
-            updateStats();
-            initWeather();
-        }, 500);
+        if(!state.lugares.some(l => l.nombre.toLowerCase().includes('techfix'))) {
+            state.lugares.unshift({
+                nombre: "TechFix Taller",
+                categoria: "techfix servicios",
+                lat: CONFIG.techFixCoords[0],
+                lng: CONFIG.techFixCoords[1],
+                desc: "Servicio técnico oficial. Reparación de PC, Celulares y Consolas.",
+                img: null,
+                wp: "5493794000000",
+                destacado: true,
+                opensAt: 8, closesAt: 20
+            });
+        }
         
+        state.lugares.forEach(l => { if(!l.opensAt) { l.opensAt = 9; l.closesAt = 22; } });
+        state.lugaresFiltrados = state.lugares;
+        renderMarkers(state.lugares);
+        renderFeed(state.lugares);
     } catch (e) {
-        console.warn('⚠️ Error cargando JSON o modo offline');
-        showToast("Estás navegando sin conexión");
+        console.error(e);
+        showToast("⚠️ Usando datos cacheados");
     }
+}
 
-    iniciarGPS();
-    
-    // Manejo del botón "Atrás" del celular
-    window.addEventListener('popstate', (event) => {
-        if (document.getElementById('ficha-lugar').classList.contains('open')) {
-            cerrarFicha(false);
-            return;
-        }
-        if (event.state && event.state.view) {
-            cambiarTab(event.state.view, false);
-        }
+function checkConnection() {
+    const banner = document.getElementById('offline-banner');
+    if(!navigator.onLine) banner.classList.add('visible');
+    window.addEventListener('offline', () => banner.classList.add('visible'));
+    window.addEventListener('online', () => {
+        banner.classList.remove('visible');
+        showToast("✅ Conexión restablecida");
     });
-    window.history.replaceState({ view: 'map' }, '');
 }
 
-// --- PWA SERVICE WORKER ---
-function registerServiceWorker() {
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js')
-            .then(() => console.log('Service Worker OK'))
-            .catch(err => console.error('Error SW:', err));
+async function flushOfflineQueue() {
+    const queue = JSON.parse(localStorage.getItem('offlineReviews') || '[]');
+    if(queue.length === 0) return;
+    showToast(`🔄 Subiendo ${queue.length} comentarios pendientes...`);
+    const newQueue = [];
+    for(const item of queue) {
+        try { await addDoc(collection(db, "reviews"), item); } catch(e) { newQueue.push(item); }
     }
+    localStorage.setItem('offlineReviews', JSON.stringify(newQueue));
 }
 
-/* ==========================================
-   GESTIÓN DE USUARIOS (AUTH & FIRESTORE)
-   ========================================== */
-
-let isRegisterMode = false; // ¿Está en modo registro?
-
-// 1. Cambiar visualmente entre "Iniciar Sesión" y "Crear Cuenta"
-window.toggleAuthMode = () => {
-    isRegisterMode = !isRegisterMode;
-    
-    const title = document.getElementById('auth-title');
-    const subtitle = document.getElementById('auth-subtitle');
-    const btnSubmit = document.getElementById('btn-submit');
-    const toggleText = document.getElementById('toggle-text');
-    const btnToggle = document.getElementById('btn-toggle');
-
-    if (isRegisterMode) {
-        // MODO REGISTRO
-        title.innerText = "Crear Cuenta";
-        subtitle.innerText = "Únete a Ruta Correntina gratis.";
-        btnSubmit.innerText = "Registrarse";
-        btnSubmit.style.background = "#34C759"; // Verde
-        toggleText.innerText = "¿Ya tienes cuenta?";
-        btnToggle.innerText = "Volver a Iniciar Sesión";
-    } else {
-        // MODO LOGIN
-        title.innerText = "Bienvenido";
-        subtitle.innerText = "Inicia sesión para continuar.";
-        btnSubmit.innerText = "Iniciar Sesión";
-        btnSubmit.style.background = "#007AFF"; // Azul
-        toggleText.innerText = "¿Es tu primera vez aquí?";
-        btnToggle.innerText = "Crear una cuenta nueva";
-    }
-};
-
-// 2. Manejar el envío del formulario
-window.handleSubmit = (e) => {
-    e.preventDefault();
-    if (isRegisterMode) {
-        ejecutarRegistro();
-    } else {
-        ejecutarLogin();
-    }
-};
-
-// 3. Ejecutar Login
-async function ejecutarLogin() {
-    const email = document.getElementById('email-input').value;
-    const pass = document.getElementById('pass-input').value;
-
+async function fetchWeatherReal() {
     try {
-        await signInWithEmailAndPassword(auth, email, pass);
-        showToast("¡Bienvenido de nuevo!");
-    } catch (error) {
-        showToast("Error: " + error.message);
-    }
+        const lat = state.userCoords ? state.userCoords.lat : CONFIG.defaultCenter[0];
+        const lng = state.userCoords ? state.userCoords.lng : CONFIG.defaultCenter[1];
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m&timezone=auto`);
+        const data = await res.json();
+        if(data?.current) {
+            document.getElementById('temp-val').innerText = `${Math.round(data.current.temperature_2m)}°C`;
+            document.querySelector('.weather-in-bar').style.display = 'flex';
+        }
+    } catch (e) {}
 }
 
-// 4. Ejecutar Registro
-async function ejecutarRegistro() {
-    const email = document.getElementById('email-input').value;
-    const pass = document.getElementById('pass-input').value;
-
-    if (!email || !pass) { alert("Completa todos los campos."); return; }
-    if (pass.length < 6) { alert("La contraseña debe tener 6 caracteres o más."); return; }
-
-    try {
-        // Crear usuario en Auth
-        const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-        const user = userCredential.user;
-        
-        // Preguntar nombre
-        const nombre = prompt("¡Cuenta creada! ¿Cómo quieres llamarte?", "Viajero");
-        await updateProfile(user, { displayName: nombre });
-
-        // Crear ficha en base de datos (Firestore)
-        await setDoc(doc(db, "users", user.uid), {
-            email: email,
-            nombre: nombre,
-            visitados: [],
-            xp: 0,
-            nivel: 1
+function flattenLugares(data) {
+    let out = [];
+    if (Array.isArray(data)) {
+        data.forEach(grupo => {
+            Object.keys(grupo).forEach(categoria => {
+                if(Array.isArray(grupo[categoria])) {
+                    grupo[categoria].forEach(lugar => {
+                        out.push({
+                            ...lugar,
+                            categoria: categoria,
+                            lat: lugar.lat_lng ? lugar.lat_lng[0] : null,
+                            lng: lugar.lat_lng ? lugar.lat_lng[1] : null
+                        });
+                    });
+                }
+            });
         });
-
-        showToast("¡Todo listo! Bienvenido.");
-    } catch (error) {
-        alert("Error al registrar: " + error.message);
     }
+    return out.filter(l => l.lat && l.lng);
 }
-
-// 5. Cargar datos del usuario desde la nube
-async function cargarDatosUsuario(user) {
-    try {
-        const docRef = doc(db, "users", user.uid);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            
-            // Mezclar datos: Si hay datos en la nube, los usamos
-            state.visitados = data.visitados || [];
-            
-            // Actualizar interfaz del perfil
-            const nameEl = document.getElementById('user-name');
-            const avEl = document.getElementById('user-avatar');
-            
-            if(nameEl) nameEl.innerText = data.nombre || user.displayName || 'Viajero';
-            if(avEl) avEl.src = `https://ui-avatars.com/api/?name=${data.nombre || 'User'}&background=007AFF&color=fff`;
-            
-            updateStats();
-        }
-    } catch (e) {
-        console.error("Error cargando perfil:", e);
-    }
-}
-
-// 6. Cerrar Sesión
-window.cerrarSesion = () => {
-    signOut(auth).then(() => {
-        showToast("Sesión cerrada.");
-        state.visitados = []; // Limpiar memoria local
-        updateStats();
-        setTimeout(() => window.location.reload(), 500); // Recargar para limpiar todo
-    });
-};
-
-/* ==========================================
-   FUNCIONES DEL MAPA Y NAVEGACIÓN
-   ========================================== */
 
 function initMap() {
-    state.map = L.map('map', { zoomControl: false, attributionControl: false }).setView([-27.469, -58.830], 14);
+    state.map = L.map('map', { zoomControl: false, attributionControl: false }).setView(CONFIG.defaultCenter, 14);
     updateMapTiles();
     
     state.markersCluster = L.markerClusterGroup({ 
-        showCoverageOnHover: false, maxClusterRadius: 40, animate: true 
+        showCoverageOnHover: false, 
+        maxClusterRadius: 40,
+        iconCreateFunction: function(cluster) {
+            return L.divIcon({ html: `<div>${cluster.getChildCount()}</div>`, className: 'custom-cluster', iconSize: [40, 40] });
+        }
     });
     state.map.addLayer(state.markersCluster);
 }
@@ -267,304 +205,530 @@ function updateMapTiles() {
     L.tileLayer(url, { maxZoom: 19 }).addTo(state.map);
 }
 
-// Filtro con espera (Debounce) para que no se trabe al escribir
-let timeoutBusqueda;
-window.filtrarInput = (val) => {
-    clearTimeout(timeoutBusqueda);
-    timeoutBusqueda = setTimeout(() => ejecutarFiltro(val), 300);
+function renderMarkers(list) { 
+    state.markersCluster.clearLayers(); 
+    list.forEach(l => { 
+        let iconClass = 'fa-map-marker-alt';
+        let colorClass = l.categoria.split(' ')[0];
+        
+        if(l.categoria.includes('turismo')) iconClass = 'fa-camera';
+        if(l.categoria.includes('comida') || l.categoria.includes('gastro')) iconClass = 'fa-utensils';
+        if(l.categoria.includes('playa')) iconClass = 'fa-umbrella-beach';
+        if(l.categoria.includes('techfix')) { iconClass = 'fa-wrench'; colorClass = 'techfix'; }
+
+        const isTechFix = l.nombre.toLowerCase().includes('techfix');
+        const customHtml = `
+            <div class="pin-head ${colorClass} ${isTechFix ? 'pulse-gold' : ''}">
+                <i class="fas ${iconClass}"></i>
+            </div>
+            <div class="pin-point"></div>`;
+
+        const icon = L.divIcon({ 
+            className: `custom-pin ${isTechFix ? 'z-top' : ''}`, 
+            html: customHtml, 
+            iconSize:[40,50], 
+            iconAnchor:[20,50] 
+        }); 
+        
+        const marker = L.marker([l.lat,l.lng],{icon});
+        marker.on('click', () => abrirFicha(l));
+        state.markersCluster.addLayer(marker); 
+    }); 
 }
 
-// Filtro rápido por botones
-window.filtrarBoton = (categoria, boton) => {
-    // Cambiar estilo de botones
+window.filtrarInput = (val) => { state.busquedaActual = val.toLowerCase(); ejecutarFiltros(); };
+window.filtrarBoton = (cat, btn) => {
+    state.filtroActual = cat.toLowerCase();
     document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
-    if(boton) boton.classList.add('active');
-    
-    ejecutarFiltro(categoria);
-}
-
-function ejecutarFiltro(criterio) {
-    const txt = criterio.toLowerCase();
-    
-    const res = state.lugares.filter(l => 
-        txt === 'todos' || 
-        (l.categoria && l.categoria.toLowerCase().includes(txt)) || 
-        l.nombre.toLowerCase().includes(txt) ||
-        (l.tags && l.tags.some(tag => tag.includes(txt)))
-    );
-    
-    renderMarkers(res);
-    
-    if(document.getElementById('view-list').style.display !== 'none') {
-        renderFeed(res);
-    }
-
-    if (res.length > 0 && txt !== 'todos' && txt !== '') {
-        const grupo = L.featureGroup(res.map(l => L.marker([l.lat, l.lng])));
-        setTimeout(() => state.map.flyToBounds(grupo.getBounds().pad(0.2), { duration: 1.5 }), 50);
-    } else if (txt === 'todos') {
-        state.map.flyTo([-27.469, -58.830], 14);
-    }
-}
-
-// --- CHECK-IN Y GPS ---
-
-window.triggerCheckIn = () => {
-    const btn = document.getElementById('btn-checkin-dynamic');
-    if(btn.classList.contains('visited-state')) return;
-    
-    // Vibración
-    if(navigator.vibrate) navigator.vibrate(15);
-    
-    if(btn.classList.contains('enabled')) { 
-        document.getElementById('foto-checkin').click(); 
-    } else { 
-        showToast("Estás demasiado lejos."); 
-    }
+    if(btn) btn.classList.add('active'); 
+    ejecutarFiltros();
+    if(navigator.vibrate) navigator.vibrate(10);
 };
 
-window.procesarFotoCheckin = (input) => {
-    if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) { confirmarCheckIn(e.target.result); }
-        reader.readAsDataURL(input.files[0]);
-    }
-};
-
-async function confirmarCheckIn(fotoBase64) {
-    if(!state.currentPlace) return;
+function ejecutarFiltros() {
+    const { filtroActual, busquedaActual, lugares } = state;
+    const horaActual = new Date().getHours();
     
-    const nuevoCheckin = { 
-        nombre: state.currentPlace.nombre, 
-        date: new Date().toISOString(), 
-        foto: fotoBase64 
-    };
-    
-    // Guardar en memoria local
-    state.visitados.push(nuevoCheckin);
-    
-    // Guardar en NUBE (si está conectado)
-    if (state.currentUser) {
-        try {
-            const userRef = doc(db, "users", state.currentUser.uid);
-            await setDoc(userRef, { visitados: state.visitados }, { merge: true });
-        } catch (err) {
-            console.error("Error guardando en nube:", err);
+    const res = lugares.filter(l => {
+        let catMatch = true;
+        if(filtroActual === 'abierto') {
+            catMatch = (l.opensAt <= horaActual && l.closesAt > horaActual);
+        } else if (filtroActual !== 'todos') {
+            catMatch = JSON.stringify(l).toLowerCase().includes(filtroActual);
         }
-    }
-
-    showToast(`🎉 ¡+50 XP! Visitaste ${state.currentPlace.nombre}`);
-    actualizarBotonCheckin();
-    updateStats();
-}
-
-function actualizarBotonCheckin() {
-    const btn = document.getElementById('btn-checkin-dynamic');
-    if(!btn || !state.currentPlace || !state.userCoords) return;
-    
-    const visitado = state.visitados.find(v => v.nombre === state.currentPlace.nombre);
-    
-    if (visitado) {
-        btn.className = "btn-checkin-big visited-state";
-        btn.style.background = 'var(--success-grad)';
-        btn.innerHTML = `<i class="fas fa-check-circle"></i> VISITADO`;
-        return;
-    }
-    
-    const dist = getDistance(state.userCoords.lat, state.userCoords.lng, state.currentPlace.lat, state.currentPlace.lng);
-    
-    if (dist <= CONFIG.radioCheckin) {
-        btn.className = "btn-checkin-big enabled photo-mode";
-        btn.innerHTML = `📸 FOTO CHECK-IN`;
-    } else {
-        btn.className = "btn-checkin-big disabled";
-        btn.style.background = 'rgba(142, 142, 147, 0.15)';
-        btn.innerHTML = `🚶 ACÉRCATE (${Math.round(dist)}m)`;
-    }
-}
-
-// --- RENDERIZADO Y UI ---
-
-function renderMarkers(lista) {
-    state.markersCluster.clearLayers();
-    lista.forEach(l => {
-        const catClass = l.categoria ? l.categoria.toLowerCase() : 'default';
-        const icon = L.divIcon({ className: 'custom-pin', html: `<div class="pin-head ${catClass}"><i class="fas ${getCatIcon(l.categoria)}"></i></div><div class="pin-point" style="border-top-color: white"></div>`, iconSize: [40, 50], iconAnchor: [20, 50] });
-        const m = L.marker([l.lat, l.lng], { icon: icon });
-        m.on('click', () => abrirFicha(l));
-        state.markersCluster.addLayer(m);
+        const textMatch = !busquedaActual || l.nombre.toLowerCase().includes(busquedaActual);
+        return catMatch && textMatch;
     });
+    
+    state.lugaresFiltrados = res;
+    renderMarkers(res);
+    renderFeed(res);
 }
 
-function renderFeed(lista) {
-    const container = document.getElementById('feed-container');
-    if(!container) return;
+window.centrarMapaUsuario = () => {
+    if(state.userCoords) {
+        state.map.flyTo([state.userCoords.lat, state.userCoords.lng], 16, { duration: 1.5 });
+        showToast("📍 Estás aquí");
+    } else {
+        showToast("📡 Buscando señal GPS...");
+        iniciarGPS();
+    }
+};
+
+window.iniciarGPS = () => { 
+    if(navigator.geolocation) {
+        navigator.geolocation.watchPosition(p => { 
+            state.userCoords = { lat: p.coords.latitude, lng: p.coords.longitude }; 
+            if(!state.userMarker) {
+                state.userMarker = L.marker([state.userCoords.lat, state.userCoords.lng], {
+                    icon: L.divIcon({className:'user-dot'})
+                }).addTo(state.map);
+            } else {
+                state.userMarker.setLatLng([state.userCoords.lat, state.userCoords.lng]);
+            }
+            checkGeofence();
+            actualizarBotonCheckin(); 
+        }, (err) => { console.warn("GPS Warn", err); }, CONFIG.gpsOptions); 
+    }
+};
+
+function checkGeofence() {
+    if(!state.userCoords || state.notificadoTechFix) return;
+    const dist = getDistance(state.userCoords.lat, state.userCoords.lng, CONFIG.techFixCoords[0], CONFIG.techFixCoords[1]);
+    if(dist < CONFIG.radioNotificacion) {
+        showToast("🔔 ¡Estás cerca de TechFix! Pasa a saludar.");
+        if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        state.notificadoTechFix = true;
+    }
+}
+
+window.iniciarRuta = (destinoParam) => {
+    let destinoLatLng;
+    if(destinoParam === 'ficha' && state.currentPlace) {
+        destinoLatLng = L.latLng(state.currentPlace.lat, state.currentPlace.lng);
+        cerrarFicha();
+    } else if(destinoParam === 'techfix') {
+        destinoLatLng = L.latLng(CONFIG.techFixCoords);
+    } else if (destinoParam === 'historica') destinoLatLng = L.latLng(-27.463049,-58.839644); 
+    else if (destinoParam === 'costanera') destinoLatLng = L.latLng(-27.477179,-58.855176);
+
+    if(!destinoLatLng) return showToast("⚠️ Destino no válido");
+    if(!state.userCoords) return showToast("⚠️ Esperando GPS...");
+
+    if(state.routingControl) state.map.removeControl(state.routingControl);
+    showToast("🚗 Calculando ruta...");
     
-    const destacados = lista.sort((a,b) => (b.estrellas || 0) - (a.estrellas || 0));
+    state.routingControl = L.Routing.control({
+        waypoints: [ L.latLng(state.userCoords.lat, state.userCoords.lng), destinoLatLng ],
+        routeWhileDragging: false, addWaypoints: false, showAlternatives: false,
+        lineOptions: { styles: [{color: '#007AFF', opacity: 0.8, weight: 6}] },
+        createMarker: () => null, language: 'es'
+    }).addTo(state.map);
+
+    state.routingControl.on('routesfound', e => {
+        const s = e.routes[0].summary;
+        document.getElementById('nav-time').innerText = Math.round(s.totalTime/60) + " min";
+        document.getElementById('nav-dist').innerText = (s.totalDistance/1000).toFixed(1) + " km";
+        document.getElementById('nav-ui-bottom').classList.add('active');
+    });
+
+    cambiarTab('map');
+};
+
+window.finalizarViaje = () => {
+    if(state.routingControl) {
+        state.map.removeControl(state.routingControl);
+        state.routingControl = null;
+    }
+    document.getElementById('nav-ui-bottom').classList.remove('active');
+};
+
+window.refreshFeed = () => {
+    renderFeedSkeletons();
+    setTimeout(() => { fetchLugares(); showToast("Datos actualizados"); }, 1000);
+}
+
+function renderFeedSkeletons() {
+    const c = document.getElementById('feed-container');
+    c.innerHTML = Array(4).fill('<div class="skeleton" style="height:180px; border-radius:28px;"></div>').join('');
+}
+
+function renderFeed(list) { 
+    const c = document.getElementById('feed-container'); 
+    if(!list || list.length === 0) { 
+        c.innerHTML = '<div style="grid-column:span 2; text-align:center; padding:20px; color:#888">No hay lugares para mostrar.</div>'; 
+        return; 
+    } 
     
-    container.innerHTML = destacados.map(l => {
-        const tieneImagen = l.img && !l.img.includes('logo.png');
-        const bgStyle = tieneImagen ? `background-image: url('${l.img}');` : `background: linear-gradient(45deg, #007AFF, #00C6FF);`; 
-        const isPremium = l.estrellas === 5 ? 'premium' : '';
+    c.innerHTML = list.map((l, index) => { 
+        const isFav = state.favoritos.includes(l.nombre); 
+        const cardClass = index === 0 ? 'card-modern card-hero' : 'card-modern';
+        const imgUrl = l.img || 'https://via.placeholder.com/400x400?text=Ruta+Correntina';
         
         return `
-        <div class="card-explorar ${isPremium}" onclick="abrirFichaNombre('${l.nombre}')" style="${bgStyle}">
-            <div class="card-content">
-                <div class="card-top">
-                    <span class="tag-cat">${l.categoria || 'Lugar'}</span>
-                    ${l.estrellas ? `<span class="tag-star"><i class="fas fa-star"></i> ${l.estrellas}</span>` : ''}
-                </div>
-                <div class="card-bottom">
+        <div class="${cardClass}" onclick="abrirFichaNombre('${l.nombre}')">
+            <img src="${imgUrl}" loading="lazy" alt="${l.nombre}">
+            ${l.destacado ? '<span class="card-badge-top">⭐ TOP</span>' : ''}
+            <div class="card-fav-btn ${isFav?'active':''}">${isFav ? '❤️' : '🤍'}</div>
+            <div class="card-overlay">
+                <div class="glass-info">
                     <h3>${l.nombre}</h3>
-                    <p><i class="fas fa-map-marker-alt"></i> Corrientes</p>
+                    <p><i class="fas fa-map-marker-alt"></i> ${l.categoria.split(' ')[0]}</p>
                 </div>
             </div>
+        </div>`;
+    }).join(''); 
+}
+
+window.abrirFicha = (l) => {
+    state.currentPlace = l;
+    const isFav = state.favoritos.includes(l.nombre);
+    const bgStyle = l.img ? `<img src="${l.img}" loading="lazy" onerror="this.src='https://via.placeholder.com/400x300?text=Ruta+Correntina'">` : `<div class="placeholder-gradient"><i class="fas fa-image"></i></div>`;
+    
+    document.getElementById('ficha-lugar').innerHTML = `
+        <div class="ficha-hero">
+            ${bgStyle}
+            <button class="btn-back-float" onclick="cerrarFicha()"><i class="fas fa-chevron-down"></i></button>
+            <button class="btn-fav-float ${isFav?'active':''}" onclick="toggleFavorite('${l.nombre}')"><i class="${isFav ? 'fas' : 'far'} fa-heart"></i></button>
+        </div>
+        <div class="ficha-content">
+            <div class="ficha-header">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span class="tag-cat">${l.categoria.split(' ')[0]}</span>
+                    ${l.destacado ? '<span class="tag-top">⭐ TOP</span>' : ''}
+                </div>
+                <h1>${l.nombre}</h1>
+                <p>${l.desc || 'Explora este lugar increíble.'}</p>
+            </div>
+            <div class="action-grid">
+                <button onclick="iniciarRuta('ficha')" class="btn-action primary"><i class="fas fa-location-arrow"></i> IR AHORA</button>
+                <button onclick="compartirLugar('${l.nombre}')" class="btn-action secondary"><i class="fas fa-share-alt"></i></button>
+                ${l.wp ? `<a href="https://wa.me/${l.wp}" target="_blank" class="btn-action whatsapp"><i class="fab fa-whatsapp"></i></a>` : ''}
+            </div>
+            <button id="btn-checkin-dynamic" onclick="triggerCheckIn()" class="btn-checkin-big disabled"><i class="fas fa-satellite-dish"></i> <span>Ubicando...</span></button>
+            <input type="file" id="foto-checkin" accept="image/*" capture="environment" style="display:none" onchange="procesarFotoCheckin(this)">
+            <div class="comments-section">
+                <h3>Reseñas</h3>
+                <div class="review-input-box"><input type="text" id="input-review" placeholder="Deja tu opinión..."><button onclick="enviarComentario()"><i class="fas fa-paper-plane"></i></button></div>
+                <div id="lista-comentarios">Cargando...</div>
+            </div>
+        </div>`;
+    
+    document.getElementById('ficha-lugar').classList.add('open');
+    actualizarBotonCheckin();
+    cargarComentarios(l.nombre);
+};
+
+window.cerrarFicha = () => { document.getElementById('ficha-lugar').classList.remove('open'); state.currentPlace = null; };
+window.destinoMagico = () => {
+    const opciones = state.lugares.filter(l => !l.nombre.toLowerCase().includes('techfix'));
+    const random = opciones[Math.floor(Math.random() * opciones.length)];
+    if(random) { abrirFichaNombre(random.nombre); showToast(`✨ ¡El destino eligió: ${random.nombre}!`); }
+};
+
+window.abrirFichaNombre = (n) => { 
+    const l = state.lugares.find(x=>x.nombre===n); 
+    if(l) { cambiarTab('map'); setTimeout(()=>{ state.map.flyTo([l.lat,l.lng],16); abrirFicha(l); },300); } 
+};
+
+async function cargarPerfil(u) {
+    const docRef = doc(db, "users", u.uid);
+    const snap = await getDoc(docRef);
+
+    if (snap.exists()) {
+        const d = snap.data();
+        state.visitados = d.visitados || [];
+        state.favoritos = d.favoritos || [];
+        
+        const userName = d.nombre || u.displayName || 'Explorador';
+        document.getElementById('user-name').innerText = userName;
+        document.getElementById('user-avatar').src = `https://ui-avatars.com/api/?name=${userName}&background=007AFF&color=fff&size=128&bold=true`;
+        
+        if(u.email === 'ale@techfix.com') {
+            document.getElementById('badge-role').innerText = "CEO TECHFIX";
+            document.getElementById('badge-role').style.background = "linear-gradient(90deg, #FFD60A, #FF9F0A)";
+        }
+
+        const xp = state.visitados.length * 100;
+        const lvl = Math.floor(xp / 500) + 1;
+        const pct = Math.min(100, (xp % 500) / 500 * 100);
+        document.getElementById('level-badge').innerText = `Lv. ${lvl}`;
+        document.getElementById('current-xp').innerText = `${xp} / ${(lvl*500)} XP`;
+        document.getElementById('xp-bar-fill').style.width = `${pct}%`;
+        
+        const puntos = state.visitados.length * 10;
+        document.getElementById('tech-points').innerText = puntos;
+        document.getElementById('canje-points').innerText = puntos;
+
+        document.getElementById('stat-visitados').innerText = state.visitados.length;
+        document.getElementById('stat-badges-count').innerText = Math.floor(state.visitados.length / 3); 
+
+        const miniGrid = document.getElementById('passport-grid-mini');
+        if(miniGrid && state.visitados.length > 0) {
+            const ultimas = state.visitados.slice(-3).reverse();
+            miniGrid.innerHTML = ultimas.map(v => `<img src="${v.foto}">`).join('');
+        }
+        
+        renderCoupons(puntos);
+    }
+}
+
+function renderCoupons(puntosUser) {
+    const container = document.getElementById('canje-list');
+    container.innerHTML = PREMIOS.map(p => {
+        const puede = puntosUser >= p.costo;
+        return `
+        <div class="coupon-card ${puede ? '' : 'disabled'}">
+            <div class="coupon-left">
+                <span class="coupon-cost">${p.costo} PTS</span>
+                <h3>${p.nombre}</h3>
+            </div>
+            <button class="coupon-btn" onclick="canjearPremio(${p.id})">${puede ? 'CANJEAR' : 'FALTA'}</button>
         </div>`;
     }).join('');
 }
 
-function updateStats() {
-    const totalVisitados = state.visitados.length;
-    const nivelActual = Math.floor(totalVisitados / 2) + 1; 
-    
-    const elVis = document.getElementById('stat-visitados');
-    const elNiv = document.getElementById('stat-nivel');
-    if(elVis) elVis.innerText = totalVisitados;
-    if(elNiv) elNiv.innerText = nivelActual;
-
-    // Badges (Insignias)
-    const badgeContainer = document.getElementById('badges-container');
-    if (badgeContainer) {
-        let badgesHTML = '';
-        state.badges.forEach(b => {
-            const unlocked = totalVisitados >= b.req || b.special;
-            badgesHTML += `
-            <div class="badge-item ${unlocked ? 'unlocked' : 'locked'}" onclick="showBadgeInfo('${b.nombre}', '${b.desc}')">
-                <div class="badge-icon">${b.icon}</div>
-                <span>${b.nombre}</span>
-            </div>`;
-        });
-        badgeContainer.innerHTML = badgesHTML;
-    }
-    
-    // Pasaporte
-    const pasaporteGrid = document.getElementById('pasaporte-grid');
-    if (pasaporteGrid) {
-        const fotos = state.visitados.filter(v => v.foto);
-        if (fotos.length > 0) { 
-            pasaporteGrid.innerHTML = fotos.map(v => {
-                const rot = Math.floor(Math.random() * 16) - 8; 
-                return `<div class="foto-recuerdo" style="--rot:${rot}deg"><img src="${v.foto}" loading="lazy"><span>${v.nombre}</span></div>`;
-            }).join(''); 
-        } else if (state.visitados.length > 0) { 
-            pasaporteGrid.innerHTML = '<div class="empty-state-p">Has visitado lugares, pero sin fotos aún.</div>'; 
-        }
-    }
+window.canjearPremio = (id) => {
+    alert("¡Muestra este mensaje en TechFix para validar tu descuento!");
 }
 
-// --- UTILIDADES ---
+window.toggleRanking = async (show) => {
+    const modal = document.getElementById('modal-ranking');
+    if(show) {
+        modal.classList.add('open');
+        const list = document.getElementById('ranking-list');
+        list.innerHTML = '<div class="skeleton" style="height:50px;margin-bottom:10px;"></div>'.repeat(3);
+        
+        const q = query(collection(db, "users"), limit(10));
+        try {
+            const querySnapshot = await getDocs(q);
+            let users = [];
+            querySnapshot.forEach(doc => {
+                const d = doc.data();
+                users.push({ name: d.nombre || 'Anónimo', xp: (d.visitados?.length || 0) * 100 });
+            });
+            users.sort((a,b) => b.xp - a.xp);
 
-window.abrirFichaNombre = (n) => { const l = state.lugares.find(x=>x.nombre===n); if(l) { cambiarTab('map', false); setTimeout(() => { state.map.flyTo([l.lat, l.lng], 16); abrirFicha(l); }, 300); } };
-
-window.cambiarTab = (tabId, pushHistory = true) => {
-    if (document.getElementById('ficha-lugar').classList.contains('open')) cerrarFicha(false);
-    
-    // Animación de cambio de pestaña
-    document.querySelectorAll('.app-view').forEach(v => { 
-        v.classList.remove('active'); 
-        setTimeout(() => { if(!v.classList.contains('active')) v.style.display = 'none'; }, 200); 
-    });
-    
-    const target = document.getElementById(`view-${tabId}`);
-    target.style.display = 'block';
-    setTimeout(() => { target.style.opacity = '1'; target.classList.add('active'); }, 50);
-    
-    // Botones de abajo
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    const mapIdx = {'map':0, 'list':1, 'profile':2};
-    document.querySelectorAll('.tab-btn')[mapIdx[tabId]].classList.add('active');
-    
-    if(tabId === 'map') setTimeout(() => state.map.invalidateSize(), 250);
-    if(tabId === 'profile') updateStats();
-    if (pushHistory) window.history.pushState({ view: tabId }, '', `?view=${tabId}`);
-};
-
-window.iniciarGPS = () => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.watchPosition((pos) => {
-            state.userCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-            const icon = L.divIcon({ className: '', html: '<div class="user-dot"></div><div class="user-pulse"></div>', iconSize: [20, 20] });
-            if (!state.userMarker) state.userMarker = L.marker([state.userCoords.lat, state.userCoords.lng], { icon: icon }).addTo(state.map);
-            else state.userMarker.setLatLng([state.userCoords.lat, state.userCoords.lng]);
-            actualizarBotonCheckin();
-    }, null, CONFIG.gpsOptions);
-};
-
-window.abrirFicha = (lugar) => {
-    state.currentPlace = lugar;
-    const isFav = (state.favoritos || []).includes(lugar.nombre);
-    const tieneImagen = lugar.img && !lugar.img.includes('logo.png');
-    const imgStyle = tieneImagen ? `<img src="${lugar.img}" loading="lazy">` : `<div style="width:100%; height:100%; background: linear-gradient(45deg, #007AFF, #00C6FF); display:flex; align-items:center; justify-content:center;"><i class="fas ${getCatIcon(lugar.categoria)}" style="font-size:4rem; color:white; opacity:0.5;"></i></div>`;
-
-    const html = `
-        <div class="ficha-hero">
-            ${imgStyle}
-            <button class="btn-back-float" onclick="cerrarFicha()"><i class="fas fa-times"></i></button>
-        </div>
-        <div class="ficha-content">
-            <div class="ficha-header">
-                <div style="display:flex; justify-content:space-between; align-items:start;">
-                    <div><span class="cat-pill-mini">${lugar.categoria||'General'}</span><h1>${lugar.nombre}</h1></div>
-                    <button class="btn-fav ${isFav?'active':''}" onclick="toggleFav('${lugar.nombre}', this)" style="font-size:1.5rem; background:none; border:none; padding:0;"><i class="${isFav?'fas':'far'} fa-heart" style="color: ${isFav?'#FF3B30':'var(--text-sec)'}"></i></button>
+            list.innerHTML = users.map((u, i) => `
+                <div class="rank-item">
+                    <div class="rank-pos top-${i+1}">${i+1}</div>
+                    <div class="rank-avatar"></div>
+                    <div class="rank-info"><strong>${u.name}</strong><small>Explorador</small></div>
+                    <div class="rank-xp">${u.xp} XP</div>
                 </div>
-                <p>${lugar.desc || 'Descripción no disponible.'}</p>
-            </div>
-            <button id="btn-checkin-dynamic" onclick="triggerCheckIn()" class="btn-checkin-big disabled"><i class="fas fa-satellite-dish"></i> Buscando ubicación...</button>
-        </div>`;
-    const ficha = document.getElementById('ficha-lugar');
-    ficha.innerHTML = html;
-    ficha.classList.add('open');
-    actualizarBotonCheckin();
-};
-
-window.cerrarFicha = (goBack = true) => { document.getElementById('ficha-lugar').classList.remove('open'); state.currentPlace = null; if (goBack && window.history.state && window.history.state.modal === 'ficha') { window.history.back(); } };
-window.centrarMapaUsuario = () => { if(state.userCoords) state.map.flyTo([state.userCoords.lat, state.userCoords.lng], 16); else showToast("Buscando señal GPS..."); };
-window.showBadgeInfo = (nombre, desc) => { showToast(`🏆 ${nombre}: ${desc}`); }
-
-function setupNetworkStatus() {
-    const update = () => {
-        const banner = document.getElementById('offline-banner');
-        if (navigator.onLine) banner.classList.remove('visible');
-        else banner.classList.add('visible');
-    };
-    window.addEventListener('online', update);
-    window.addEventListener('offline', update);
-    update();
-}
-
-function renderEventBanner() {
-    const container = document.getElementById('eventos-banner-container');
-    if (state.eventos && state.eventos.length > 0) {
-        const evt = state.eventos[0];
-        container.innerHTML = `<div class="event-banner"><h4>📅 Próximo Evento</h4><h2>${evt.titulo}</h2><p>${evt.desc} • ${evt.fecha}</p></div>`;
+            `).join('');
+        } catch(e) { list.innerHTML = "Error al cargar ranking."; }
+    } else {
+        modal.classList.remove('open');
     }
 }
 
-async function initWeather() {
-    try {
-        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=-27.469&longitude=-58.830&current_weather=true`);
-        const data = await res.json();
-        const temp = Math.round(data.current_weather.temperature);
-        const widget = document.getElementById('weather-widget');
-        if(widget) {
-            widget.querySelector('span').innerText = `${temp}°C`;
-            widget.style.display = 'inline-flex';
-        }
-    } catch (e) { console.warn("Clima no disponible"); }
+window.toggleCanje = (show) => {
+    const modal = document.getElementById('modal-canje');
+    show ? modal.classList.add('open') : modal.classList.remove('open');
 }
 
-function setupEventListeners() { document.getElementById('dark-mode-toggle').addEventListener('click', () => { document.body.classList.toggle('dark-mode'); localStorage.setItem('theme', document.body.classList.contains('dark-mode')?'dark':'light'); updateMapTiles(); }); }
-function initTheme() { if(localStorage.getItem('theme')==='dark') document.body.classList.add('dark-mode'); }
-function showToast(m) { const t=document.createElement('div'); t.className='toast'; t.innerText=m; document.getElementById('toast-container').appendChild(t); setTimeout(()=>t.remove(),3000); }
-function getCatIcon(c) { return {'turismo':'fa-camera','gastronomia':'fa-utensils','hospedaje':'fa-bed','shopping':'fa-shopping-bag'}[c?.toLowerCase()] || 'fa-map-marker-alt'; }
-function getDistance(lat1,lon1,lat2,lon2) { const R=6371e3; const dLat=(lat2-lat1)*Math.PI/180; const dLon=(lon2-lon1)*Math.PI/180; const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2; return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)); }
+/* --- UTILS --- */
+function toggleAuthUI(isLoggedIn) {
+    const authContainer = document.getElementById('auth-container');
+    const profileContent = document.getElementById('user-profile-content');
+    if(isLoggedIn) {
+        if(authContainer) authContainer.style.display = 'none';
+        if(profileContent) profileContent.style.display = 'block';
+    } else {
+        if(authContainer) authContainer.style.display = 'flex';
+        if(profileContent) profileContent.style.display = 'none';
+    }
+}
+
+function getDistance(lat1,lon1,lat2,lon2) { const R=6371e3, dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180, a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2; return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)); }
+window.showToast = (m) => { const t=document.createElement('div'); t.className='toast'; t.innerText=m; document.getElementById('toast-container').appendChild(t); setTimeout(()=>t.remove(),3000); };
+window.initTheme = () => { 
+    const isDark = localStorage.getItem('theme')==='dark';
+    if(isDark) document.body.classList.add('dark-mode'); 
+    document.getElementById('dark-mode-toggle').onclick = () => {
+        document.body.classList.toggle('dark-mode');
+        const theme = document.body.classList.contains('dark-mode') ? 'dark' : 'light';
+        localStorage.setItem('theme', theme);
+        updateMapTiles();
+    };
+};
+window.cambiarTab = (id) => {
+    document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active'));
+    document.getElementById(`view-${id}`).classList.add('active');
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    const indices = { 'map':0, 'list':1, 'profile':2 };
+    document.querySelectorAll('.tab-btn')[indices[id]].classList.add('active');
+    if(id==='map') setTimeout(()=>state.map.invalidateSize(), 200);
+};
+
+// Auth & Social
+window.toggleAuthMode = () => { const t = document.getElementById('auth-header-text'); const isReg = t.innerText==='Accede a tu pasaporte digital'; t.innerText=isReg?'Crea tu cuenta gratis':'Accede a tu pasaporte digital'; document.getElementById('btn-submit').innerText=isReg?'Registrarse':'Entrar'; document.getElementById('toggle-text').innerText=isReg?'¿Ya tienes cuenta?':'Crear cuenta'; };
+window.handleSubmit = (e) => { 
+    e.preventDefault(); 
+    const em=document.getElementById('email-input').value; 
+    const ps=document.getElementById('pass-input').value; 
+    const isReg=document.getElementById('btn-submit').innerText==='Registrarse'; 
+    if(isReg) {
+        createUserWithEmailAndPassword(auth,em,ps)
+            .then(c=>{ updateProfile(c.user,{displayName:'Viajero'}); setDoc(doc(db,"users",c.user.uid),{visitados:[]}); })
+            .catch(e=>showToast("Error: " + e.message)); 
+    } else {
+        signInWithEmailAndPassword(auth,em,ps).catch(e=> showToast("Credenciales incorrectas")); 
+    }
+};
+window.cerrarSesion = () => signOut(auth).then(()=>window.location.reload());
+window.toggleFavorite = async (n) => { const idx = state.favoritos.indexOf(n); if(idx > -1) state.favoritos.splice(idx, 1); else state.favoritos.push(n); const btn = document.querySelector('.btn-fav-float i'); if(btn) btn.className = state.favoritos.includes(n) ? 'fas fa-heart' : 'far fa-heart'; if(state.currentUser) await setDoc(doc(db, "users", state.currentUser.uid), { favoritos: state.favoritos }, { merge: true }); else localStorage.setItem('localFavs', JSON.stringify(state.favoritos)); renderFeed(state.lugaresFiltrados); showToast(idx > -1 ? "💔 Eliminado" : "❤️ Favorito"); };
+window.compartirLugar = (n) => { if (navigator.share) { navigator.share({ title: 'Ruta Correntina', text: `¡Mira: ${n}!`, url: window.location.href }).catch(console.error); } else { showToast("Link copiado"); } };
+window.triggerCheckIn = () => { const btn = document.getElementById('btn-checkin-dynamic'); if(btn.classList.contains('active')) document.getElementById('foto-checkin').click(); };
+window.procesarFotoCheckin = (i) => { if(i.files[0]) { const r = new FileReader(); r.onload=(e)=>confirmarCheckIn(e.target.result); r.readAsDataURL(i.files[0]); }};
+async function confirmarCheckIn(f) { 
+    state.visitados.push({ nombre: state.currentPlace.nombre, date: new Date().toISOString(), foto:f }); 
+    if(state.currentUser) await setDoc(doc(db,"users",state.currentUser.uid),{visitados:state.visitados},{merge:true}); 
+    if(navigator.vibrate) navigator.vibrate([100,50,100]); 
+    showToast(`🎉 +100 XP: ${state.currentPlace.nombre}`); 
+    actualizarBotonCheckin(); 
+    cargarPerfil(state.currentUser); 
+}
+function actualizarBotonCheckin() { 
+    const btn = document.getElementById('btn-checkin-dynamic'); 
+    if(!btn || !state.currentPlace || !state.userCoords) return; 
+    const d = getDistance(state.userCoords.lat, state.userCoords.lng, state.currentPlace.lat, state.currentPlace.lng); 
+    if(state.visitados.some(v=>v.nombre===state.currentPlace.nombre)) { 
+        btn.className = "btn-checkin-big enabled"; btn.innerHTML="✅ VISITADO"; btn.style.background='var(--success-grad)'; 
+    } else if(d <= CONFIG.radioCheckin) { 
+        btn.className = "btn-checkin-big enabled active"; btn.innerHTML = "📸 FOTO CHECK-IN"; btn.style.background='var(--primary-grad)'; 
+    } else { 
+        btn.className = "btn-checkin-big disabled"; btn.innerHTML = `🚶 ACÉRCATE (${Math.round(d)}m)`; btn.style.background='#ccc'; 
+    } 
+}
+window.enviarComentario = async () => {
+    if(!state.currentUser) return showToast("Inicia sesión");
+    const t = document.getElementById('input-review').value;
+    if(!t) return;
+    const reviewData = { lugar: state.currentPlace.nombre, usuario: state.currentUser.displayName || 'U', texto: t, fecha: serverTimestamp(), uid: state.currentUser.uid };
+    if(navigator.onLine) { await addDoc(collection(db, "reviews"), reviewData); showToast("Enviado"); } else { const queue = JSON.parse(localStorage.getItem('offlineReviews') || '[]'); queue.push(reviewData); localStorage.setItem('offlineReviews', JSON.stringify(queue)); showToast("💾 Guardado (se enviará al conectar)"); }
+    document.getElementById('input-review').value='';
+    cargarComentarios(state.currentPlace.nombre);
+};
+window.cargarComentarios = async(l) => {
+    const b = document.getElementById('lista-comentarios');
+    b.innerHTML = '<div class="skeleton" style="height:30px; margin-bottom:5px;"></div>'.repeat(3); 
+    try {
+        if(navigator.onLine) {
+            const q = query(collection(db, "reviews"), where("lugar","==",l), orderBy("fecha","desc"), limit(5));
+            const s = await getDocs(q);
+            b.innerHTML = s.empty ? '<small>Sé el primero en comentar</small>' : '';
+            s.forEach(d=>{b.innerHTML+=`<div class="review-item"><b>${d.data().usuario}</b>: ${d.data().texto}</div>`});
+        } else { b.innerHTML = '<small>Modo Offline: No se pueden cargar reseñas.</small>'; }
+    } catch(e){ b.innerHTML = ''; }
+};
+
+window.abrirEditarPerfil = async () => {
+    const nuevoNombre = prompt("Escribe tu nuevo nombre:", document.getElementById('user-name').innerText);
+    if(nuevoNombre && nuevoNombre.trim() !== "") {
+        if(state.currentUser) {
+            await setDoc(doc(db, "users", state.currentUser.uid), { nombre: nuevoNombre }, { merge: true });
+            cargarPerfil(state.currentUser);
+            showToast("✅ Perfil actualizado");
+        }
+    }
+};
+
+/* ==========================================
+   MÓDULO IA GEMINI - TECHFIX EDITION (FINAL FIX)
+   ========================================== */
+
+const GEMINI_API_KEY = "AIzaSyAnsZwcgoTuhVcKWI0xoJ7k93B39iuX-MY"; 
+
+window.toggleChat = () => {
+    const chat = document.getElementById('chat-widget');
+    if (!chat) return;
+    const isHidden = chat.classList.contains('chat-hidden');
+    if (isHidden) {
+        chat.classList.remove('chat-hidden');
+        chat.classList.add('chat-visible');
+        setTimeout(() => document.getElementById('user-msg').focus(), 300);
+    } else {
+        chat.classList.remove('chat-visible');
+        chat.classList.add('chat-hidden');
+    }
+};
+
+window.handleEnter = (e) => {
+    if (e.key === 'Enter') enviarMensajeIA();
+};
+
+window.enviarMensajeIA = async () => {
+    const input = document.getElementById('user-msg');
+    const btn = document.getElementById('btn-send-ai');
+    const textoUsuario = input.value.trim();
+    if (!textoUsuario) return;
+
+    addMessage(textoUsuario, 'user');
+    input.value = '';
+    input.disabled = true;
+    btn.disabled = true;
+    
+    const loadingId = addMessage("Conectando... 🛰️", 'bot', true);
+
+    try {
+        const infoLugares = state.lugares.slice(0, 15).map(l => l.nombre).join(', ');
+        const prompt = `Eres el guía de la app "Ruta Correntina". Lugares disponibles: ${infoLugares}. Si preguntan por reparaciones o tecnología, recomienda TechFix Taller. Responde corto a: "${textoUsuario}"`;
+
+        // URL beta recomendada para solicitudes web directas
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            console.error("Detalle técnico:", data.error);
+            throw new Error(data.error.message);
+        }
+        
+        const respuestaBot = data.candidates[0].content.parts[0].text;
+        removeMessage(loadingId);
+        addMessage(respuestaBot, 'bot');
+
+    } catch (error) {
+        console.error("Error capturado:", error);
+        removeMessage(loadingId);
+        addMessage("No pude conectar. 📡 Intenta de nuevo en unos segundos.", 'bot');
+    } finally {
+        input.disabled = false;
+        btn.disabled = false;
+        input.focus();
+    }
+};
+
+function addMessage(text, sender, isLoading = false) {
+    const chatBody = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = sender === 'user' ? 'user-msg' : 'bot-msg';
+    
+    if(sender === 'bot' && !isLoading) {
+        div.innerHTML = text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+    } else {
+        div.innerText = text;
+    }
+
+    if (isLoading) {
+        div.id = 'loading-msg';
+        div.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Pensando...';
+    }
+
+    chatBody.appendChild(div);
+    chatBody.scrollTop = chatBody.scrollHeight;
+    return div.id;
+}
+
+function removeMessage(id) {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+}
