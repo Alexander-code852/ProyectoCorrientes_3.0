@@ -29,6 +29,11 @@
     <div id="offline-banner"><i class="fas fa-wifi-slash"></i> Sin conexión - Guardando localmente</div>
 
     <div id="view-map" class="app-view active">
+        <div id="map-loader" class="loader-overlay">
+            <div class="logo-pulse"><i class="fas fa-map-marked-alt"></i></div>
+            <p>Cargando cartografía...</p>
+        </div>
+        
         <div id="map"></div>
         
         <div class="top-bar-floating">
@@ -148,8 +153,9 @@
                 
                 <div class="profile-header">
                     <div class="user-info-row">
-                        <div class="avatar-container">
+                        <div class="avatar-container" onclick="document.getElementById('input-avatar').click()" style="cursor:pointer">
                             <img id="user-avatar" src="" alt="Avatar">
+                            <div class="avatar-edit-overlay"><i class="fas fa-camera"></i></div>
                             <div class="level-bubble" id="level-badge">Lv. 1</div>
                         </div>
                         <div class="user-text">
@@ -157,6 +163,7 @@
                             <span class="role-tag" id="badge-role">TURISTA</span>
                         </div>
                     </div>
+                    <input type="file" id="input-avatar" accept="image/*" style="display:none" onchange="procesarNuevoAvatar(this)">
                     <button class="btn-icon-circle" onclick="abrirEditarPerfil()"><i class="fas fa-cog"></i></button>
                 </div>
 
@@ -200,22 +207,33 @@
                     </div>
                 </div>
 
+                <div class="techfix-portal">
+                    <div class="portal-header">
+                        <h3><i class="fas fa-tools"></i> Portal TechFix</h3>
+                        <button onclick="solicitarSOS()" class="btn-sos">S.O.S TÉCNICO</button>
+                    </div>
+                    <div class="tracker-box">
+                        <input type="text" id="codigo-reparacion" placeholder="Código (Ej: HP-BATERIA)">
+                        <button onclick="consultarReparacion()"><i class="fas fa-search"></i></button>
+                    </div>
+                    <div id="resultado-reparacion"></div>
+                </div>
+
                 <div class="menu-group">
                     <div class="menu-item" onclick="toggleRanking(true)">
                         <div class="menu-left">
                             <div class="menu-icon color-1"><i class="fas fa-medal"></i></div>
-                            <span class="menu-label">Mis Logros</span>
+                            <span class="menu-label">Ranking de Viajeros</span>
                         </div>
                         <i class="fas fa-chevron-right arrow"></i>
                     </div>
                     
-                    <div class="menu-item">
+                    <div class="menu-item" id="gallery-item" style="display:none;">
                         <div class="menu-left">
-                            <div class="menu-icon color-2"><i class="fas fa-images"></i></div>
-                            <span class="menu-label">Galería Reciente</span>
+                            <div class="menu-icon color-2"><i class="fas fa-camera-retro"></i></div>
+                            <span class="menu-label">Álbum de Viajes</span>
                         </div>
                         <div class="menu-preview-imgs" id="passport-grid-mini"></div>
-                        <i class="fas fa-chevron-right arrow"></i>
                     </div>
 
                     <div class="menu-item" id="dark-mode-toggle">
@@ -267,13 +285,13 @@
         
         <div id="chat-messages" class="chat-body">
             <div class="bot-msg">
-                ¡Hola, viajero! 🧉 Soy tu guía virtual en Corrientes. 
-                <br>Pregúntame por lugares o si necesitas ayuda técnica.
+                ¡Hola, viajero! Soy tu guía virtual en Corrientes. 
+                <br>Pregúntame por lugares, comida o si necesitas ayuda técnica.
             </div>
         </div>
         
         <div class="chat-input-area">
-            <input type="text" id="user-msg" placeholder="Escribe aquí..." onkeypress="handleEnter(event)">
+            <input type="text" id="user-msg" placeholder="Pregúntale a RutaBot..." onkeypress="handleEnter(event)">
             <button onclick="enviarMensajeIA()" id="btn-send-ai">
                 <i class="fas fa-paper-plane"></i>
             </button>

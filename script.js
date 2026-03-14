@@ -15,7 +15,7 @@ const CONFIG = {
     gpsOptions: { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 },
     defaultCenter: [-27.469, -58.830], 
     techFixCoords: [-27.469, -58.830],
-    GEMINI_API_KEY: "AIzaSyAnsZwcgoTuhVcKWI0xoJ7k93B39iuX-MY" 
+    GEMINI_API_KEY: "AIzaSyA5nqH0AgAMMEWkwmIVWMUMvViOTqi8s3U" // Tu clave real de Google
 };
 
 const PREMIOS = [
@@ -47,7 +47,8 @@ document.addEventListener('DOMContentLoaded', initApp);
 window.addEventListener('online', flushOfflineQueue);
 
 async function initApp() {
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+    // if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+    
     checkConnection();
     setupHeaderDate();
 
@@ -188,6 +189,14 @@ function initMap() {
     state.map = L.map('map', { zoomControl: false, attributionControl: false }).setView(CONFIG.defaultCenter, 14);
     updateMapTiles();
     
+    state.map.on('load', () => {
+        const loader = document.getElementById('map-loader');
+        if(loader) {
+            loader.style.opacity = '0';
+            setTimeout(() => loader.style.display = 'none', 300);
+        }
+    });
+    
     state.markersCluster = L.markerClusterGroup({ 
         showCoverageOnHover: false, 
         maxClusterRadius: 40,
@@ -196,6 +205,8 @@ function initMap() {
         }
     });
     state.map.addLayer(state.markersCluster);
+    
+    setTimeout(() => state.map.fire('load'), 800);
 }
 
 function updateMapTiles() {
@@ -238,7 +249,6 @@ function renderMarkers(list) {
     }); 
 }
 
-// Filtro con debounce (retraso para no saturar)
 let debounceTimer;
 window.filtrarInput = (val) => { 
     clearTimeout(debounceTimer);
@@ -364,6 +374,7 @@ function renderFeedSkeletons() {
     if(c) c.innerHTML = Array(4).fill('<div class="skeleton" style="height:180px; border-radius:28px;"></div>').join('');
 }
 
+// --- ACTUALIZACIÓN DE TARJETAS (NUEVO RENDER v6.3) ---
 function renderFeed(list) { 
     const c = document.getElementById('feed-container'); 
     if(!c) return;
@@ -374,18 +385,42 @@ function renderFeed(list) {
     
     c.innerHTML = list.map((l, index) => { 
         const isFav = state.favoritos.includes(l.nombre); 
+        
+        // Determinar icono y clase de color según la categoría
+        let catIcon = 'fa-map-marker-alt';
+        let colorClass = l.categoria.split(' ')[0];
+        
+        if(l.categoria.includes('turismo')) catIcon = 'fa-camera';
+        if(l.categoria.includes('gastronomia') || l.categoria.includes('comida')) catIcon = 'fa-utensils';
+        if(l.categoria.includes('playa')) catIcon = 'fa-umbrella-beach';
+        if(l.categoria.includes('techfix')) { catIcon = 'fa-wrench'; colorClass = 'techfix'; }
+
+        // Placeholder si no hay imagen
+        const imgUrl = l.img || 'https://via.placeholder.com/400x300?text=Ruta+Correntina';
+
+        // Si es el primer elemento, hacerlo "Hero Card" (más grande)
         const cardClass = index === 0 ? 'card-modern card-hero' : 'card-modern';
-        const imgUrl = l.img || 'https://via.placeholder.com/400x400?text=Ruta+Correntina';
         
         return `
-        <div class="${cardClass}" onclick="abrirFichaNombre('${l.nombre}')">
+        <div class="${cardClass}" onclick="event.target.closest('.card-fav-btn') ? toggleFavorite('${l.nombre}') : abrirFichaNombre('${l.nombre}')">
             <img src="${imgUrl}" loading="lazy" alt="${l.nombre}">
-            ${l.destacado ? '<span class="card-badge-top">⭐ TOP</span>' : ''}
-            <div class="card-fav-btn ${isFav?'active':''}">${isFav ? '❤️' : '🤍'}</div>
-            <div class="card-overlay">
-                <div class="glass-info">
-                    <h3>${l.nombre}</h3>
-                    <p><i class="fas fa-map-marker-alt"></i> ${l.categoria.split(' ')[0]}</p>
+            
+            <div class="card-gradient"></div>
+
+            <span class="card-badge-cat ${colorClass}">
+                <i class="fas ${catIcon}"></i> 
+                ${l.categoria.split(' ')[0]}
+            </span>
+
+            <button class="card-fav-btn ${isFav?'active':''}">
+                <i class="${isFav ? 'fas' : 'far'} fa-heart"></i>
+            </button>
+
+            <div class="card-info-box">
+                <h3>${l.nombre}</h3>
+                <div class="card-actions-mini">
+                    <span onclick="event.stopPropagation(); abrirFichaNombre('${l.nombre}')"><i class="fas fa-info-circle"></i> Ver</span>
+                    <span onclick="event.stopPropagation(); cambiarTab('map'); setTimeout(()=>state.map.flyTo([${l.lat},${l.lng}],16),300)"><i class="fas fa-map"></i> Mapa</span>
                 </div>
             </div>
         </div>`;
@@ -397,6 +432,21 @@ window.abrirFicha = (l) => {
     const isFav = state.favoritos.includes(l.nombre);
     const bgStyle = l.img ? `<img src="${l.img}" loading="lazy" onerror="this.src='https://via.placeholder.com/400x300?text=Ruta+Correntina'">` : `<div style="width:100%;height:100%;background:linear-gradient(135deg,#ccc,#999)"></div>`;
     
+    let menuHTML = '';
+    if(l.menu && l.menu.length > 0) {
+        menuHTML = `
+            <div class="restaurant-menu">
+                <h3>Menú Destacado</h3>
+                ${l.menu.map(m => `
+                    <div class="menu-item-row">
+                        <span>${m.item}</span>
+                        <strong>$${m.precio.toLocaleString('es-AR')}</strong>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
     document.getElementById('ficha-lugar').innerHTML = `
         <div class="ficha-hero">
             ${bgStyle}
@@ -417,6 +467,7 @@ window.abrirFicha = (l) => {
                 <button onclick="compartirLugar('${l.nombre}')" class="btn-action secondary"><i class="fas fa-share-alt"></i></button>
                 ${l.wp ? `<a href="https://wa.me/${l.wp}" target="_blank" class="btn-action whatsapp"><i class="fab fa-whatsapp"></i></a>` : ''}
             </div>
+            ${menuHTML}
             <button id="btn-checkin-dynamic" onclick="triggerCheckIn()" class="btn-checkin-big disabled"><i class="fas fa-satellite-dish"></i> <span>Ubicando...</span></button>
             <input type="file" id="foto-checkin" accept="image/*" capture="environment" style="display:none" onchange="procesarFotoCheckin(this)">
             <div class="comments-section">
@@ -453,8 +504,11 @@ async function cargarPerfil(u) {
         state.favoritos = d.favoritos || [];
         
         const userName = d.nombre || u.displayName || 'Explorador';
+        const userAvatarUrl = d.avatar || `https://ui-avatars.com/api/?name=${userName}&background=007AFF&color=fff&size=128&bold=true`;
+        
         document.getElementById('user-name').innerText = userName;
-        document.getElementById('user-avatar').src = `https://ui-avatars.com/api/?name=${userName}&background=007AFF&color=fff&size=128&bold=true`;
+        document.getElementById('user-avatar').src = userAvatarUrl;
+        document.getElementById('header-avatar').src = userAvatarUrl;
         
         if(u.email === 'ale@techfix.com') {
             document.getElementById('badge-role').innerText = "CEO TECHFIX";
@@ -475,10 +529,19 @@ async function cargarPerfil(u) {
         document.getElementById('stat-visitados').innerText = state.visitados.length;
         document.getElementById('stat-badges-count').innerText = Math.floor(state.visitados.length / 3); 
 
+        const galleryItem = document.getElementById('gallery-item');
         const miniGrid = document.getElementById('passport-grid-mini');
-        if(miniGrid && state.visitados.length > 0) {
-            const ultimas = state.visitados.slice(-3).reverse();
-            miniGrid.innerHTML = ultimas.map(v => `<img src="${v.foto}">`).join('');
+        
+        if(state.visitados && state.visitados.length > 0) {
+            galleryItem.style.display = 'flex'; // Aparece si tienes fotos
+            const ultimas = state.visitados.slice(-4).reverse(); // Muestra las últimas 4
+            miniGrid.innerHTML = ultimas.map(v => `
+                <div class="mini-photo-wrapper">
+                    <img src="${v.foto}" title="${v.nombre}">
+                </div>
+            `).join('');
+        } else {
+            galleryItem.style.display = 'none'; // Se oculta si está vacío
         }
         
         renderCoupons(puntos);
@@ -590,7 +653,7 @@ window.handleSubmit = (e) => {
     }
 };
 window.cerrarSesion = () => signOut(auth).then(()=>window.location.reload());
-window.toggleFavorite = async (n) => { const idx = state.favoritos.indexOf(n); if(idx > -1) state.favoritos.splice(idx, 1); else state.favoritos.push(n); const btn = document.querySelector('.btn-fav-float i'); if(btn) btn.className = state.favoritos.includes(n) ? 'fas fa-heart' : 'far fa-heart'; if(state.currentUser) await setDoc(doc(db, "users", state.currentUser.uid), { favoritos: state.favoritos }, { merge: true }); else localStorage.setItem('localFavs', JSON.stringify(state.favoritos)); renderFeed(state.lugaresFiltrados); showToast(idx > -1 ? "💔 Eliminado" : "❤️ Favorito"); };
+window.toggleFavorite = async (n) => { const idx = state.favoritos.indexOf(n); if(idx > -1) state.favoritos.splice(idx, 1); else state.favoritos.push(n); if(state.currentUser) await setDoc(doc(db, "users", state.currentUser.uid), { favoritos: state.favoritos }, { merge: true }); else localStorage.setItem('localFavs', JSON.stringify(state.favoritos)); renderFeed(state.lugaresFiltrados); showToast(idx > -1 ? "💔 Eliminado de favoritos" : "❤️ ¡Agregado a favoritos!"); };
 window.compartirLugar = (n) => { if (navigator.share) { navigator.share({ title: 'Ruta Correntina', text: `¡Mira: ${n}!`, url: window.location.href }).catch(console.error); } else { showToast("Link copiado"); } };
 window.triggerCheckIn = () => { const btn = document.getElementById('btn-checkin-dynamic'); if(btn.classList.contains('active')) document.getElementById('foto-checkin').click(); };
 window.procesarFotoCheckin = (i) => { if(i.files[0]) { const r = new FileReader(); r.onload=(e)=>confirmarCheckIn(e.target.result); r.readAsDataURL(i.files[0]); }};
@@ -647,6 +710,32 @@ window.abrirEditarPerfil = async () => {
     }
 };
 
+window.procesarNuevoAvatar = (input) => {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const base64Image = e.target.result;
+            
+            document.getElementById('user-avatar').src = base64Image;
+            document.getElementById('header-avatar').src = base64Image;
+            
+            if(state.currentUser) {
+                try {
+                    showToast("⏳ Subiendo avatar...");
+                    await setDoc(doc(db, "users", state.currentUser.uid), { avatar: base64Image }, { merge: true });
+                    showToast("✅ Avatar actualizado");
+                } catch (error) {
+                    console.error("Error subiendo avatar:", error);
+                    showToast("❌ Error al guardar");
+                    cargarPerfil(state.currentUser);
+                }
+            }
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+};
+
+
 /* ==========================================
    MÓDULO IA GEMINI - GUÍA RUTABOT EDITION
    ========================================== */
@@ -685,42 +774,46 @@ window.enviarMensajeIA = async () => {
     try {
         const infoLugares = state.lugares.slice(0, 15).map(l => l.nombre).join(', ');
         
-        // SYSTEM PROMPT AVANZADO PARA GUÍA RUTABOT
         const systemPrompt = `Actúa como "Guía RutaBot", el compañero virtual de viajes en Corrientes. 
-        Fuiste creado por Alejandro de TechFix.
+        Fuites creado por Alejandro de TechFix.
         Tu tono es amable, local (usa "chamigo", "gurí" ocasionalmente) y servicial.
         
         OBJETIVOS:
         1. Ayudar con turismo. Lugares que conoces: ${infoLugares}.
         2. VENTAS SUTILES: Si el usuario menciona problemas técnicos (celular roto, PC lenta, pantalla rota, wifi no anda), DEBES recomendar ir a "TechFix" para solucionarlo.
         
-        Ejemplo: 
-        Usuario: "Se me cayó el celular al río"
-        Tú: "¡Uy chamigo! Qué mala suerte. Llévalo urgente a TechFix, Alejandro te lo salva. Está en el mapa."
-        
-        Responde brevemente.
-        Usuario dice: "${textoUsuario}"`;
+        Responde brevemente.`;
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CONFIG.GEMINI_API_KEY}`;
+        const promptFinal = `${systemPrompt}\n\nUsuario dice: "${textoUsuario}"`;
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.GEMINI_API_KEY}`;
 
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }] })
+            body: JSON.stringify({ 
+                contents: [{ 
+                    role: "user",
+                    parts: [{ text: promptFinal }] 
+                }] 
+            })
         });
 
         const data = await response.json();
 
-        if (data.error) throw new Error(data.error.message);
+        if (data.error) {
+            console.error("⛔ Detalle del error de Google:", data.error);
+            throw new Error(data.error.message);
+        }
         
         const respuestaBot = data.candidates[0].content.parts[0].text;
         removeMessage(loadingId);
         addMessage(respuestaBot, 'bot');
 
     } catch (error) {
-        console.error("Error AI:", error);
+        console.error("⛔ Error AI completo:", error);
         removeMessage(loadingId);
-        addMessage("El servidor está tomando tereré 🧉. Intenta luego.", 'bot');
+        addMessage("Hubo un error de conexión 🧉. Presiona F12 y revisa la pestaña 'Consola' para ver el motivo exacto.", 'bot');
     } finally {
         input.disabled = false;
         if(btn) btn.disabled = false;
@@ -753,3 +846,41 @@ function removeMessage(id) {
     const el = document.getElementById(id);
     if (el) el.remove();
 }
+
+// --- LÓGICA PORTAL TECHFIX ---
+const dbReparaciones = {
+    "S10-PANTALLA": { equipo: "Samsung Galaxy S10", problema: "Pantalla rota - Cambio de módulo", estado: "En banco de pruebas", icono: "fa-mobile-alt", color: "orange" },
+    "A71-CAMARA": { equipo: "Samsung Galaxy A71", problema: "Lentes manchados - Limpieza", estado: "Esperando repuesto", icono: "fa-camera", color: "red" },
+    "HP-BATERIA": { equipo: "Notebook HP 14-am071la", problema: "Batería no funciona - Reemplazo", estado: "¡Listo para retirar!", icono: "fa-laptop", color: "green" }
+};
+
+window.consultarReparacion = () => {
+    const codigo = document.getElementById('codigo-reparacion').value.trim().toUpperCase();
+    const resultDiv = document.getElementById('resultado-reparacion');
+    
+    if(!codigo) return;
+    
+    resultDiv.innerHTML = '<div class="skeleton" style="height:60px; border-radius:12px;"></div>';
+    
+    setTimeout(() => {
+        const rep = dbReparaciones[codigo];
+        if(rep) {
+            resultDiv.innerHTML = `
+                <div class="tracker-card">
+                    <div class="tracker-icon ${rep.color}"><i class="fas ${rep.icono}"></i></div>
+                    <div class="tracker-info">
+                        <strong>${rep.equipo}</strong>
+                        <small>${rep.problema}</small>
+                        <span class="status-badge ${rep.color}">${rep.estado}</span>
+                    </div>
+                </div>
+            `;
+        } else {
+            resultDiv.innerHTML = `<p class="error-text">Código no encontrado. Verifica tu orden.</p>`;
+        }
+    }, 800);
+};
+
+window.solicitarSOS = () => {
+    window.open(`https://wa.me/5493794000000?text=Hola%20TechFix,%20estoy%20usando%20Ruta%20Correntina%20y%20tengo%20una%20urgencia%20t%C3%A9cnica.`, '_blank');
+};

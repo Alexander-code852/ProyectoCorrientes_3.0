@@ -279,6 +279,22 @@
         "desc": "Corazón comercial de la ciudad."
       }
     ],
+    "gastronomia": [
+      {
+        "nombre": "Rapidos y Sabrosos",
+        "tipo": "comida",
+        "estrellas": 5,
+        "lat_lng": [-27.470, -58.835],
+        "desc": "Las mejores pizzas y milanesas para recargar energías.",
+        "menu": [
+          {"item": "Milanesa a Caballo (p/1)", "precio": 10000},
+          {"item": "Milanesa Napolitana (para 2)", "precio": 20500},
+          {"item": "Pizza Calabresa", "precio": 12500},
+          {"item": "Empanadas (Docena)", "precio": 12000},
+          {"item": "Empanadas (Media)", "precio": 7500}
+        ]
+      }
+    ],
     "Playa": [
       {
         "nombre": "Playa Arazaty",
