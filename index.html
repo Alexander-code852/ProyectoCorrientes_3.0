@@ -7,8 +7,8 @@
     <meta name="theme-color" content="#007AFF">
     <link rel="manifest" href="manifest.json">
     
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.css" />
@@ -18,19 +18,19 @@
 </head>
 <body>
 
-    <div id="splash-screen">
+    <div id="splash-screen" role="dialog" aria-label="Cargando aplicación">
         <div class="splash-content">
-            <div class="logo-pulse"><i class="fas fa-map-marked-alt"></i></div>
+            <div class="logo-pulse"><ion-icon name="map" aria-hidden="true"></ion-icon></div>
             <h1>Ruta Correntina</h1>
-            <p>TECHFIX EDITION v6.2</p>
+            <p>GUÍA DEFINITIVA</p>
         </div>
     </div>
 
-    <div id="offline-banner"><i class="fas fa-wifi-slash"></i> Sin conexión - Guardando localmente</div>
+    <div id="offline-banner" role="status"><ion-icon name="wifi" aria-hidden="true"></ion-icon> Sin conexión - Funcionando Offline</div>
 
-    <div id="view-map" class="app-view active">
+    <div id="view-map" class="app-view active" role="region" aria-label="Mapa interactivo">
         <div id="map-loader" class="loader-overlay">
-            <div class="logo-pulse"><i class="fas fa-map-marked-alt"></i></div>
+            <div class="logo-pulse"><ion-icon name="map" aria-hidden="true"></ion-icon></div>
             <p>Cargando cartografía...</p>
         </div>
         
@@ -38,17 +38,21 @@
         
         <div class="top-bar-floating">
             <div class="search-box-glass">
-                <i class="fas fa-search"></i>
-                <input type="text" id="buscador-input" placeholder="¿A dónde vamos hoy?" onkeyup="filtrarInput(this.value)">
-                <div id="weather-widget" class="weather-in-bar">
-                    <i class="fas fa-cloud-sun"></i> <span id="temp-val">--°</span>
+                <ion-icon name="search" class="search-icon" aria-hidden="true"></ion-icon>
+                <input type="text" id="buscador-input" placeholder="¿A dónde vamos hoy?" aria-label="Buscar lugares, colectivos o estacionamientos" onkeyup="filtrarInput(this.value)">
+                <div id="weather-widget" class="weather-in-bar" aria-label="Clima actual">
+                    <ion-icon name="partly-sunny" aria-hidden="true"></ion-icon> <span id="temp-val">--°</span>
                 </div>
             </div>
             
-            <div class="filter-scroll">
+            <div id="search-results" class="search-dropdown hidden" role="listbox"></div>
+            
+            <div class="filter-scroll" role="toolbar" aria-label="Filtros de categoría">
                 <button class="filter-pill active" onclick="filtrarBoton('todos', this)">Todo</button>
+                <button class="filter-pill" onclick="filtrarBoton('favoritos', this)">❤️ Favoritos</button>
                 <button class="filter-pill" onclick="filtrarBoton('abierto', this)">🕒 Abierto</button>
-                <button class="filter-pill" onclick="filtrarBoton('techfix', this)">🛠️ TechFix</button> 
+                <button class="filter-pill" onclick="filtrarBoton('parada', this)">🚌 Colectivos</button>
+                <button class="filter-pill" onclick="filtrarBoton('estacionamiento', this)">🅿️ Parking</button> 
                 <button class="filter-pill" onclick="filtrarBoton('turismo', this)">📸 Turismo</button>
                 <button class="filter-pill" onclick="filtrarBoton('gastronomia', this)">🍔 Comida</button>
                 <button class="filter-pill" onclick="filtrarBoton('playa', this)">🏖️ Playa</button>
@@ -56,92 +60,102 @@
         </div>
 
         <div class="map-controls">
-            <button onclick="centrarMapaUsuario()" class="btn-float glass-btn" aria-label="Mi Ubicación">
-                <i class="fas fa-location-arrow"></i>
+            <button onclick="centrarMapaUsuario()" class="btn-float glass-btn" aria-label="Centrar en mi ubicación GPS">
+                <ion-icon name="navigate" aria-hidden="true"></ion-icon>
+            </button>
+            <button onclick="toggleLayerPanel()" class="btn-float glass-btn layer-btn" aria-label="Abrir capas del mapa">
+                <ion-icon name="layers" aria-hidden="true"></ion-icon>
+            </button>
+            <button onclick="abrirModalReporte()" class="btn-float glass-btn alert-btn" aria-label="Reportar incidente vial" style="color: #FF3B30;">
+                <ion-icon name="warning" aria-hidden="true"></ion-icon>
             </button>
         </div>
 
-        <div id="nav-ui-bottom" class="nav-island">
+        <div id="layer-panel" class="layer-panel hidden" role="dialog" aria-label="Panel de capas">
+            <div class="layer-header">
+                <span>Capas del Mapa</span>
+                <button onclick="toggleLayerPanel()" aria-label="Cerrar panel de capas"><ion-icon name="close" aria-hidden="true"></ion-icon></button>
+            </div>
+            <div class="layer-options">
+                <label><input type="checkbox" checked onchange="toggleLayer('turismo', this.checked)"> 📸 Turismo / Museos</label>
+                <label><input type="checkbox" checked onchange="toggleLayer('gastronomia', this.checked)"> 🍔 Gastronomía</label>
+                <label><input type="checkbox" checked onchange="toggleLayer('estacionamiento', this.checked)"> 🅿️ Estacionamientos</label>
+                <label><input type="checkbox" checked onchange="toggleLayer('parada', this.checked)"> 🚌 Paradas de Colectivos</label>
+                <label><input type="checkbox" checked onchange="toggleLayer('playa', this.checked)"> 🏖️ Playas y Costanera</label>
+                <label><input type="checkbox" checked onchange="toggleLayer('reportes', this.checked)"> ⚠️ Alertas Ciudadanas</label>
+            </div>
+        </div>
+
+        <div id="nav-ui-bottom" class="nav-island" role="region" aria-label="Instrucciones de navegación">
             <div class="nav-content-wrapper">
                 <div class="nav-data">
                     <div class="nav-time-big"><span id="nav-time">-- min</span></div>
                     <div class="nav-dist-small">
-                        <i class="fas fa-walking"></i> <span id="nav-dist">-- km</span>
+                        <ion-icon name="walk" aria-hidden="true"></ion-icon> <span id="nav-dist">-- km</span>
                     </div>
                 </div>
                 <div class="nav-actions">
-                    <button onclick="finalizarViaje()" class="btn-end-trip"><i class="fas fa-times"></i></button>
+                    <button onclick="finalizarViaje()" class="btn-end-trip" aria-label="Finalizar navegación"><ion-icon name="close" aria-hidden="true"></ion-icon></button>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="view-list" class="app-view">
+    <div id="view-list" class="app-view" role="region" aria-label="Explorar lugares">
         <div class="explore-header">
             <div class="header-texts">
                 <small id="date-display">Cargando fecha...</small>
                 <h1 id="greeting-display">Hola, Viajero</h1>
             </div>
-            <div class="user-mini-badge" onclick="cambiarTab('profile')">
-                <img id="header-avatar" src="https://ui-avatars.com/api/?name=Viajero&background=007AFF&color=fff" alt="Perfil">
+            <div class="user-mini-badge" onclick="cambiarTab('profile')" role="button" aria-label="Ir al perfil de usuario">
+                <img id="header-avatar" src="https://ui-avatars.com/api/?name=Viajero&background=007AFF&color=fff" alt="Avatar del usuario">
             </div>
         </div>
         
         <div class="magic-container">
-            <button class="btn-magic-wide" onclick="destinoMagico()">
-                <div class="magic-icon"><i class="fas fa-wand-magic-sparkles"></i></div>
+            <button class="btn-magic-wide" onclick="destinoMagico()" aria-label="Elegir destino aleatorio sorpresa">
+                <div class="magic-icon"><ion-icon name="color-wand" aria-hidden="true"></ion-icon></div>
                 <div class="magic-text">
                     <span>¿A dónde voy?</span>
                     <small>Sorpréndeme ahora</small>
                 </div>
-                <i class="fas fa-chevron-right magic-arrow"></i>
+                <ion-icon name="chevron-forward" class="magic-arrow" aria-hidden="true"></ion-icon>
             </button>
         </div>
         
         <div class="section-label">
-            <h3>Circuitos Rápidos</h3>
-            <a onclick="filtrarBoton('todos', null)">Ver todo</a>
+            <h3>Cercanos a ti</h3>
+            <a onclick="filtrarBoton('todos', null)" role="button">Ver todo</a>
         </div>
         <div class="rutas-scroll-modern">
-            <button onclick="iniciarRuta('techfix')" class="pill-cat techfix-glow">
-                <i class="fas fa-wrench"></i> TechFix
-            </button>
-            <button onclick="iniciarRuta('historica')" class="pill-cat orange-glow">
-                <i class="fas fa-landmark"></i> Histórico
-            </button>
-            <button onclick="iniciarRuta('costanera')" class="pill-cat blue-glow">
-                <i class="fas fa-water"></i> Costanera
-            </button>
-            <button onclick="filtrarBoton('gastronomia', null)" class="pill-cat yellow-glow">
-                <i class="fas fa-utensils"></i> Sabores
-            </button>
+            <button onclick="iniciarRuta('historica')" class="pill-cat orange-glow"><ion-icon name="business"></ion-icon> Histórico</button>
+            <button onclick="iniciarRuta('costanera')" class="pill-cat blue-glow"><ion-icon name="water"></ion-icon> Costanera</button>
+            <button onclick="filtrarBoton('gastronomia', null)" class="pill-cat yellow-glow"><ion-icon name="restaurant"></ion-icon> Sabores</button>
         </div>
         
         <div class="section-label">
-            <h3>Destacados hoy</h3>
-            <button class="btn-refresh-mini" onclick="window.refreshFeed()"><i class="fas fa-sync-alt"></i></button>
+            <h3>Explorar Corrientes</h3>
+            <button class="btn-refresh-mini" onclick="window.refreshFeed()" aria-label="Actualizar feed"><ion-icon name="refresh"></ion-icon></button>
         </div>
         
-        <div id="feed-container" class="feed-grid-modern">
-            </div>
-        
+        <div id="feed-container" class="feed-grid-modern"></div>
         <div class="spacer-bottom"></div>
     </div>
 
-    <div id="view-profile" class="app-view">
-        
+    <!-- VISTA PERFIL REDISEÑADA AL MÁXIMO -->
+    <div id="view-profile" class="app-view" role="region" aria-label="Perfil de usuario">
         <div id="auth-container">
             <div class="aurora-bg">
                 <div class="blob blob-1"></div>
                 <div class="blob blob-2"></div>
             </div>
             <div class="auth-card-glass">
-                <div class="logo-3d"><i class="fas fa-fingerprint"></i></div>
+                <div class="logo-3d"><ion-icon name="finger-print"></ion-icon></div>
                 <h1>Identifícate</h1>
                 <p id="auth-header-text">Accede a tu pasaporte digital</p>
                 <form onsubmit="handleSubmit(event)" class="auth-form">
-                    <input type="email" id="email-input" class="input-minimal" placeholder="Email" required>
-                    <input type="password" id="pass-input" class="input-minimal" placeholder="Contraseña" required>
+                    <input type="email" id="email-input" class="input-minimal" placeholder="Email" aria-label="Correo electrónico" required>
+                    <input type="password" id="pass-input" class="input-minimal" placeholder="Contraseña" aria-label="Contraseña" required>
                     <button type="submit" id="btn-submit" class="btn-premium-action">Entrar</button>
                 </form>
                 <button onclick="toggleAuthMode()" class="btn-text-link" id="toggle-text">Crear cuenta</button>
@@ -149,123 +163,140 @@
         </div>
 
         <div id="user-profile-content" style="display:none;">
-            <div class="premium-layout">
+            <div class="ios-profile-layout">
                 
-                <div class="profile-header">
-                    <div class="user-info-row">
-                        <div class="avatar-container" onclick="document.getElementById('input-avatar').click()" style="cursor:pointer">
-                            <img id="user-avatar" src="" alt="Avatar">
-                            <div class="avatar-edit-overlay"><i class="fas fa-camera"></i></div>
+                <!-- Cabecera Glassmorphism -->
+                <div class="profile-hero-card">
+                    <div class="ios-profile-header">
+                        <div class="avatar-container" onclick="document.getElementById('input-avatar').click()" style="cursor:pointer" role="button" aria-label="Cambiar foto de perfil">
+                            <img id="user-avatar" src="" alt="Avatar" onerror="this.src='https://ui-avatars.com/api/?name=Viajero&background=007AFF&color=fff'">
                             <div class="level-bubble" id="level-badge">Lv. 1</div>
                         </div>
-                        <div class="user-text">
-                            <h2 id="user-name">Viajero</h2>
-                            <span class="role-tag" id="badge-role">TURISTA</span>
-                        </div>
+                        <h2 id="user-name">Viajero</h2>
+                        <span class="role-tag" id="badge-role">Turista Local</span>
                     </div>
                     <input type="file" id="input-avatar" accept="image/*" style="display:none" onchange="procesarNuevoAvatar(this)">
-                    <button class="btn-icon-circle" onclick="abrirEditarPerfil()"><i class="fas fa-cog"></i></button>
                 </div>
 
-                <div class="bento-grid">
-                    
-                    <div class="bento-card card-wallet-black" onclick="toggleCanje(true)">
-                        <div class="card-bg-shine"></div>
-                        <div class="wallet-top">
-                            <i class="fas fa-chip"></i>
-                            <span>TECHFIX ELITE</span>
-                        </div>
-                        <div class="wallet-balance">
-                            <span id="tech-points">0</span> <small>PTS</small>
-                        </div>
-                        <div class="wallet-bottom">
-                            <span>MEMBER SINCE 2026</span>
-                            <i class="fab fa-cc-visa"></i>
-                        </div>
+                <!-- Dashboard de Estadísticas -->
+                <div class="profile-stats-grid">
+                    <div class="stat-box" onclick="cambiarTab('list')" role="button">
+                        <div class="stat-icon blue"><ion-icon name="location"></ion-icon></div>
+                        <div class="stat-value" id="stat-visitados">0</div>
+                        <div class="stat-label">Lugares Visitados</div>
                     </div>
-
-                    <div class="bento-card stat-card">
-                        <div class="icon-circle blue"><i class="fas fa-map-marker-alt"></i></div>
-                        <span class="stat-num" id="stat-visitados">0</span>
-                        <span class="stat-label">Lugares</span>
-                    </div>
-
-                    <div class="bento-card stat-card" onclick="toggleRanking(true)">
-                        <div class="icon-circle gold"><i class="fas fa-trophy"></i></div>
-                        <span class="stat-num" id="stat-badges-count">0</span>
-                        <span class="stat-label">Ranking</span>
-                    </div>
-
-                    <div class="bento-card xp-card">
-                        <div class="xp-header">
-                            <span>Progreso de Nivel</span>
-                            <span id="current-xp">0 / 500 XP</span>
-                        </div>
-                        <div class="progress-track-premium">
-                            <div id="xp-bar-fill" class="progress-fill-premium"></div>
-                        </div>
+                    <div class="stat-box" onclick="toggleRanking(true)" role="button">
+                        <div class="stat-icon gold"><ion-icon name="trophy"></ion-icon></div>
+                        <div class="stat-value" id="stat-badges-count">0</div>
+                        <div class="stat-label">Top Ranking</div>
                     </div>
                 </div>
 
-                <div class="techfix-portal">
-                    <div class="portal-header">
-                        <h3><i class="fas fa-tools"></i> Portal TechFix</h3>
-                        <button onclick="solicitarSOS()" class="btn-sos">S.O.S TÉCNICO</button>
+                <!-- Tarjeta VIP Holográfica -->
+                <div class="premium-wallet-card" onclick="toggleCanje(true)" role="button" aria-label="Ver recompensas">
+                    <div class="wallet-shine"></div>
+                    <div class="wallet-border-glow"></div>
+                    <div class="wallet-top">
+                        <div class="wallet-brand"><ion-icon name="star"></ion-icon> RUTA VIP</div>
+                        <ion-icon name="wifi" class="contactless-icon"></ion-icon>
                     </div>
-                    <div class="tracker-box">
-                        <input type="text" id="codigo-reparacion" placeholder="Código (Ej: HP-BATERIA)">
-                        <button onclick="consultarReparacion()"><i class="fas fa-search"></i></button>
+                    <div class="wallet-balance">
+                        <span id="tech-points">0</span> <small>PTS</small>
                     </div>
-                    <div id="resultado-reparacion"></div>
-                </div>
-
-                <div class="menu-group">
-                    <div class="menu-item" onclick="toggleRanking(true)">
-                        <div class="menu-left">
-                            <div class="menu-icon color-1"><i class="fas fa-medal"></i></div>
-                            <span class="menu-label">Ranking de Viajeros</span>
-                        </div>
-                        <i class="fas fa-chevron-right arrow"></i>
-                    </div>
-                    
-                    <div class="menu-item" id="gallery-item" style="display:none;">
-                        <div class="menu-left">
-                            <div class="menu-icon color-2"><i class="fas fa-camera-retro"></i></div>
-                            <span class="menu-label">Álbum de Viajes</span>
-                        </div>
-                        <div class="menu-preview-imgs" id="passport-grid-mini"></div>
-                    </div>
-
-                    <div class="menu-item" id="dark-mode-toggle">
-                        <div class="menu-left">
-                            <div class="menu-icon color-3"><i class="fas fa-moon"></i></div>
-                            <span class="menu-label">Modo Oscuro</span>
-                        </div>
-                        <div class="ios-switch"></div>
+                    <div class="wallet-bottom">
+                        <div class="wallet-user" id="wallet-user-name">Viajero Frecuente</div>
+                        <div class="wallet-arrow">Canjear <ion-icon name="arrow-forward"></ion-icon></div>
                     </div>
                 </div>
 
-                <button onclick="cerrarSesion()" class="btn-logout-premium">
-                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
-                </button>
-                
+                <!-- Barra de Progreso Mejorada -->
+                <div class="ios-list-group">
+                    <div class="ios-list-item progress-item">
+                        <div class="progress-header">
+                            <span class="progress-title"><ion-icon name="flash"></ion-icon> Progreso de Nivel</span>
+                            <span id="current-xp" class="progress-text">0 / 500 XP</span>
+                        </div>
+                        <div class="ios-progress-track">
+                            <div id="xp-bar-fill" class="ios-progress-fill"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Carrusel de Álbum de Viajes -->
+                <div class="album-container" id="gallery-item">
+                    <h3>📸 Álbum de Viajes</h3>
+                    <div class="album-scroll" id="passport-grid-mini">
+                        <!-- Empty State por Defecto -->
+                        <div class="album-empty-state">
+                            <ion-icon name="images-outline"></ion-icon>
+                            <p>Tus fotos de check-in aparecerán aquí.</p>
+                            <button onclick="cambiarTab('list')">Explorar lugares</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ajustes Estilo iOS -->
+                <div class="ios-list-header" style="margin-top:25px;"><span>Configuración</span></div>
+                <div class="ios-list-group">
+                    <div class="ios-list-item" onclick="abrirEditarPerfil()" role="button">
+                        <div class="list-left"><div class="ios-icon gray"><ion-icon name="create"></ion-icon></div> Editar Perfil</div>
+                        <div class="list-right"><ion-icon name="chevron-forward" class="arrow"></ion-icon></div>
+                    </div>
+                    <div class="ios-list-item" id="dark-mode-toggle" role="button" aria-label="Alternar modo oscuro">
+                        <div class="list-left"><div class="ios-icon black"><ion-icon name="moon"></ion-icon></div> Modo Oscuro</div>
+                        <div class="list-right"><div class="ios-switch" aria-hidden="true"></div></div>
+                    </div>
+                </div>
+
+                <button onclick="cerrarSesion()" class="ios-btn-logout">Cerrar Sesión</button>
                 <div class="spacer-bottom"></div>
             </div>
         </div>
     </div>
 
-    <div id="modal-ranking" class="full-modal">
+    <!-- MODALES -->
+    <div id="modal-reporte" class="ios-alert-modal" role="dialog" aria-label="Reportar incidente">
+        <div class="ios-alert-box" style="width: 320px;">
+            <h3>⚠️ Reportar Incidente</h3>
+            <p>Ayuda a la comunidad avisando sobre cortes o problemas.</p>
+            <select id="tipo-reporte" class="ios-alert-input" style="text-align-last: center;" aria-label="Tipo de incidente">
+                <option value="Corte de Calle / Obra">🚧 Corte de Calle / Obra</option>
+                <option value="Calle Anegada / Agua">💧 Calle Anegada</option>
+                <option value="Semáforo Roto">🚦 Semáforo Roto</option>
+                <option value="Otro Incidente">⚠️ Otro Incidente</option>
+            </select>
+            <input type="text" id="desc-reporte" class="ios-alert-input" placeholder="Breve descripción" aria-label="Descripción del reporte">
+            <div class="ios-alert-actions">
+                <button class="ios-alert-btn cancel" onclick="cerrarModalReporte()">Cancelar</button>
+                <button class="ios-alert-btn confirm" onclick="enviarReporte()">Reportar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-edit-profile" class="ios-alert-modal" role="dialog" aria-label="Editar perfil">
+        <div class="ios-alert-box">
+            <h3>Editar Nombre</h3>
+            <p>Ingresa tu nuevo nombre de usuario.</p>
+            <input type="text" id="input-nuevo-nombre" class="ios-alert-input" placeholder="Tu nombre" aria-label="Nuevo nombre de usuario">
+            <div class="ios-alert-actions">
+                <button class="ios-alert-btn cancel" onclick="cerrarEditarPerfil()">Cancelar</button>
+                <button class="ios-alert-btn confirm" onclick="guardarNuevoNombre()">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-ranking" class="full-modal" role="dialog" aria-label="Ranking de usuarios">
         <div class="modal-header">
             <h2>🏆 Top Viajeros</h2>
-            <button class="btn-close-modal" onclick="toggleRanking(false)"><i class="fas fa-times"></i></button>
+            <button class="btn-close-modal" onclick="toggleRanking(false)" aria-label="Cerrar ranking"><ion-icon name="close"></ion-icon></button>
         </div>
         <div class="modal-body" id="ranking-list"></div>
     </div>
 
-    <div id="modal-canje" class="full-modal">
+    <div id="modal-canje" class="full-modal" role="dialog" aria-label="Tienda Recompensas">
         <div class="modal-header">
-            <h2>🎟️ TechFix Store</h2>
-            <button class="btn-close-modal" onclick="toggleCanje(false)"><i class="fas fa-times"></i></button>
+            <h2>🎟️ Tienda de Recompensas</h2>
+            <button class="btn-close-modal" onclick="toggleCanje(false)" aria-label="Cerrar tienda"><ion-icon name="close"></ion-icon></button>
         </div>
         <div class="modal-body">
             <div class="points-display-large">
@@ -275,41 +306,41 @@
         </div>
     </div>
 
-    <div id="chat-widget" class="chat-hidden">
+    <div id="chat-widget" class="chat-hidden" role="region" aria-label="Asistente virtual RutaBot">
         <div class="chat-header">
             <div class="chat-title">
-                <i class="fas fa-robot"></i> Guía RutaBot
+                <ion-icon name="cube"></ion-icon> Guía RutaBot
             </div>
-            <button onclick="toggleChat()" class="close-chat"><i class="fas fa-chevron-down"></i></button>
+            <button onclick="toggleChat()" class="close-chat" aria-label="Minimizar chat"><ion-icon name="chevron-down"></ion-icon></button>
         </div>
         
-        <div id="chat-messages" class="chat-body">
+        <div id="chat-messages" class="chat-body" role="log">
             <div class="bot-msg">
                 ¡Hola, viajero! Soy tu guía virtual en Corrientes. 
-                <br>Pregúntame por lugares, comida o si necesitas ayuda técnica.
+                <br>Pregúntame por lugares, comida, colectivos o estacionamientos.
             </div>
         </div>
         
         <div class="chat-input-area">
-            <input type="text" id="user-msg" placeholder="Pregúntale a RutaBot..." onkeypress="handleEnter(event)">
-            <button onclick="enviarMensajeIA()" id="btn-send-ai">
-                <i class="fas fa-paper-plane"></i>
+            <input type="text" id="user-msg" placeholder="Pregúntale a RutaBot..." aria-label="Escribe un mensaje al bot" onkeypress="handleEnter(event)">
+            <button onclick="enviarMensajeIA()" id="btn-send-ai" aria-label="Enviar mensaje">
+                <ion-icon name="send"></ion-icon>
             </button>
         </div>
     </div>
 
-    <button onclick="toggleChat()" class="btn-chat-float">
-        <i class="fas fa-comment-dots"></i>
+    <button onclick="toggleChat()" class="btn-chat-float" aria-label="Abrir chat de asistencia">
+        <ion-icon name="chatbubble-ellipses"></ion-icon>
     </button>
 
-    <nav class="bottom-tab-bar">
-        <button class="tab-btn active" onclick="cambiarTab('map')"><i class="fas fa-map-marked-alt"></i><span>Mapa</span></button>
-        <button class="tab-btn" onclick="cambiarTab('list')"><i class="fas fa-compass"></i><span>Explorar</span></button>
-        <button class="tab-btn" onclick="cambiarTab('profile')"><i class="fas fa-user"></i><span>Perfil</span></button>
+    <nav class="bottom-tab-bar" role="navigation" aria-label="Navegación principal">
+        <button class="tab-btn active" onclick="cambiarTab('map')" aria-label="Pestaña Mapa"><ion-icon name="map"></ion-icon><span>Mapa</span></button>
+        <button class="tab-btn" onclick="cambiarTab('list')" aria-label="Pestaña Explorar"><ion-icon name="compass"></ion-icon><span>Explorar</span></button>
+        <button class="tab-btn" onclick="cambiarTab('profile')" aria-label="Pestaña Perfil"><ion-icon name="person"></ion-icon><span>Perfil</span></button>
     </nav>
 
-    <div id="ficha-lugar"></div>
-    <div id="toast-container"></div>
+    <div id="ficha-lugar" role="region" aria-label="Detalles del lugar"></div>
+    <div id="toast-container" aria-live="polite"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>

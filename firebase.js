@@ -7,6 +7,9 @@ import {
     getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
     onAuthStateChanged, signOut, updateProfile 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { 
+    getFunctions, httpsCallable 
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js"; // NUEVO
 
 const firebaseConfig = {
   apiKey: "AIzaSyBDlli0VXIC9yNy4ChQofBc0KH8c-EYNEY",
@@ -21,9 +24,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+const functions = getFunctions(app); // NUEVO
 
 export { 
-    db, auth, collection, getDocs, addDoc, doc, setDoc, getDoc, updateDoc, 
+    db, auth, functions, httpsCallable, collection, getDocs, addDoc, doc, setDoc, getDoc, updateDoc, 
     query, where, orderBy, limit, serverTimestamp,
     createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile 
 };

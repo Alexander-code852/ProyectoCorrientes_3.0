@@ -6,10 +6,7 @@
         "tipo": "puente",
         "destacado": true,
         "estrellas": 5,
-        "lat_lng": [
-          -27.47293374734846,
-          -58.8567287671344
-        ],
+        "lat_lng": [-27.47293374734846, -58.8567287671344],
         "img": "./img/puente.webp",
         "desc": "El coloso que une Corrientes y Chaco. Vistas panorámicas."
       },
@@ -17,89 +14,33 @@
         "nombre": "Costanera Sur",
         "tipo": "costa",
         "estrellas": 5,
-        "lat_lng": [
-          -27.477179709006844,
-          -58.85517680763836
-        ],
+        "lat_lng": [-27.477179709006844, -58.85517680763836],
         "img": "./img/costaSur.webp",
         "desc": "El paseo más moderno frente al río Paraná."
       },
       {
-        "nombre": "Casa de Gobierno de la Provincia de Corrientes",
+        "nombre": "Casa de Gobierno de la Provincia",
         "tipo": "turismo",
         "destacado": false,
         "estrellas": 4,
-        "lat_lng": [
-          -27.463790815836,
-          -58.83892512518816
-        ],
-        "desc": ""
+        "lat_lng": [-27.463790815836, -58.83892512518816],
+        "desc": "Sede del poder ejecutivo provincial con arquitectura de valor histórico."
       },
       {
         "nombre": "Teatro Oficial Juan de Vera",
         "tipo": "turismo",
         "destacado": false,
         "estrellas": 4,
-        "lat_lng": [
-          -27.46477701795551,
-          -58.836278142224856
-        ],
-        "desc": ""
+        "lat_lng": [-27.46477701795551, -58.836278142224856],
+        "desc": "Uno de los teatros con mejor acústica del país."
       },
       {
         "nombre": "Catedral Nuestra Señora del Rosario",
         "tipo": "turismo",
         "destacado": false,
         "estrellas": 4,
-        "lat_lng": [
-          -27.469713402919595,
-          -58.83131536444264
-        ],
-        "desc": ""
-      },
-      {
-        "nombre": "Iglesia de La Merced",
-        "tipo": "turismo",
-        "destacado": false,
-        "estrellas": 4,
-        "lat_lng": [
-          -27.464486098410266,
-          -58.83965821485432
-        ],
-        "desc": ""
-      },
-      {
-        "nombre": "Convento de San Francisco",
-        "tipo": "turismo",
-        "destacado": false,
-        "estrellas": 4,
-        "lat_lng": [
-          -27.462521382365217,
-          -58.83572949927987
-        ],
-        "desc": ""
-      },
-      {
-        "nombre": "Paseo “Iglesia Jesús Nazareno”",
-        "tipo": "religioso",
-        "destacado": false,
-        "estrellas": 4,
-        "lat_lng": [
-          -27.466365709489665,
-          -58.83096031395825
-        ],
-        "desc": ""
-      },
-      {
-        "nombre": "Colegio Nacional “General San Martín”",
-        "tipo": "historico",
-        "destacado": false,
-        "estrellas": 4,
-        "lat_lng": [
-          -27.462107126811983,
-          -58.84182428610501
-        ],
-        "desc": ""
+        "lat_lng": [-27.469713402919595, -58.83131536444264],
+        "desc": "Templo católico principal de la ciudad."
       }
     ],
     "museo": [
@@ -107,87 +48,24 @@
         "nombre": "Museo de Artesanías",
         "tipo": "museo",
         "estrellas": 4,
-        "lat_lng": [
-          -27.462771565078324,
-          -58.83873956235435
-        ],
+        "lat_lng": [-27.462771565078324, -58.83873956235435],
         "img": "./img/artesanias.webp",
         "desc": "Artesanías tradicionales correntinas en una casa colonial."
       },
       {
         "nombre": "Museo Amado Bonpland",
         "tipo": "museo",
-        "destacado": false,
         "estrellas": 4,
-        "lat_lng": [
-          -27.4655,
-          -58.8372
-        ],
+        "lat_lng": [-27.4655, -58.8372],
         "desc": "Museo de ciencias naturales con fauna y flora local."
-      },
-      {
-        "nombre": "Museo Provincial de Bellas Artes “Dr. Juan Ramón Vidal”",
-        "tipo": "museo",
-        "destacado": false,
-        "estrellas": 4,
-        "lat_lng": [
-          -27.464715728167985,
-          -58.83717913631517
-        ],
-        "desc": ""
-      },
-      {
-        "nombre": "Museo Histórico de Corrientes (Cabral de Melo y Alpoin)",
-        "tipo": "museo",
-        "destacado": false,
-        "estrellas": 4,
-        "lat_lng": [
-          -27.46669422334551,
-          -58.83736795500036
-        ],
-        "desc": ""
-      },
-      {
-        "nombre": "Centro Cultural Sanmartiniano",
-        "tipo": "museo",
-        "destacado": false,
-        "estrellas": 4,
-        "lat_lng": [
-          -27.46516802451078,
-          -58.83215323061276
-        ],
-        "desc": ""
       }
     ],
     "paseos": [
       {
-        "nombre": "UniPlaza",
-        "tipo": "iglesia",
-        "estrellas": 4,
-        "lat_lng": [
-          -27.471600626689433,
-          -58.85088253372594
-        ],
-        "desc": "Lugar histórico de la fundación de la ciudad."
-      },
-      {
-        "nombre": "Shopping Centenario",
-        "tipo": "comida",
-        "estrellas": 4,
-        "lat_lng": [
-          -27.472,
-          -58.805
-        ],
-        "desc": "Centro comercial, cine y patio de comidas."
-      },
-      {
         "nombre": "Parque Mitre",
         "tipo": "plaza",
         "estrellas": 4,
-        "lat_lng": [
-          -27.46056321041048,
-          -58.828803317411804
-        ],
+        "lat_lng": [-27.46056321041048, -58.828803317411804],
         "img": "./img/parqueMitre.webp",
         "desc": "Histórico parque con faro y pista de skate."
       },
@@ -195,10 +73,7 @@
         "nombre": "Plaza 25 de Mayo",
         "tipo": "plaza",
         "estrellas": 4,
-        "lat_lng": [
-          -27.46304951027638,
-          -58.83964489120573
-        ],
+        "lat_lng": [-27.46304951027638, -58.83964489120573],
         "img": "./img/25mayo.jpg",
         "desc": "Centro histórico, rodeada de la Casa de Gobierno."
       },
@@ -206,76 +81,15 @@
         "nombre": "Parque Cambá Cuá",
         "tipo": "plaza",
         "estrellas": 5,
-        "lat_lng": [
-          -27.465158557542544,
-          -58.844778878746695
-        ],
+        "lat_lng": [-27.465158557542544, -58.844778878746695],
         "img": "./img/cambaCua.webp",
         "desc": "El barrio del candombe, cultura y eventos al aire libre."
-      },
-      {
-        "nombre": "Plaza Cabral",
-        "tipo": "plaza",
-        "estrellas": 5,
-        "lat_lng": [
-          -27.468625971095218,
-          -58.83122472676273
-        ],
-        "img": "",
-        "desc": ""
-      },
-      {
-        "nombre": "Plaza Juan de Vera",
-        "tipo": "plaza",
-        "estrellas": 5,
-        "lat_lng": [
-          -27.467255619156248,
-          -58.83741576587744
-        ],
-        "img": "",
-        "desc": ""
-      },
-      {
-        "nombre": "Plaza Torrent",
-        "tipo": "plaza",
-        "estrellas": 5,
-        "lat_lng": [
-          -27.47183156719129,
-          -58.832892634547036
-        ],
-        "img": "",
-        "desc": ""
-      },
-      {
-        "nombre": "Parque Eucaliptal",
-        "tipo": "plaza",
-        "estrellas": 5,
-        "lat_lng": [
-          -27.475866055100855,
-          -58.78919871686744
-        ],
-        "img": "",
-        "desc": ""
-      },
-      {
-        "nombre": "Paseo El Puerto",
-        "tipo": "plaza",
-        "estrellas": 5,
-        "lat_lng": [
-          -27.46143792542888,
-          -58.83816393317682
-        ],
-        "img": "",
-        "desc": ""
       },
       {
         "nombre": "Peatonal Junín",
         "tipo": "turismo",
         "estrellas": 4,
-        "lat_lng": [
-          -27.468,
-          -58.835
-        ],
+        "lat_lng": [-27.468, -58.835],
         "desc": "Corazón comercial de la ciudad."
       }
     ],
@@ -290,45 +104,26 @@
           {"item": "Milanesa a Caballo (p/1)", "precio": 10000},
           {"item": "Milanesa Napolitana (para 2)", "precio": 20500},
           {"item": "Pizza Calabresa", "precio": 12500},
-          {"item": "Empanadas (Docena)", "precio": 12000},
-          {"item": "Empanadas (Media)", "precio": 7500}
+          {"item": "Empanadas (Docena)", "precio": 12000}
         ]
       }
     ],
-    "Playa": [
+    "playa": [
       {
         "nombre": "Playa Arazaty",
         "tipo": "costa",
         "destacado": true,
         "estrellas": 5,
-        "lat_lng": [
-          -27.475695459179626,
-          -58.85609350059826
-        ],
+        "lat_lng": [-27.475695459179626, -58.85609350059826],
         "img": "./img/playaArazaty.webp",
         "desc": "La playa más popular. Arena y sol todo el año."
       },
       {
         "nombre": "Playa Molina Punta",
         "tipo": "playa",
-        "destacado": false,
         "estrellas": 4,
-        "lat_lng": [
-          -27.439516975481837,
-          -58.78641625033519
-        ],
-        "desc": ""
-      },
-      {
-        "nombre": "Playa Islas Malvinas II",
-        "tipo": "playa",
-        "destacado": false,
-        "estrellas": 4,
-        "lat_lng": [
-          -27.470695928767572,
-          -58.85506966056563
-        ],
-        "desc": ""
+        "lat_lng": [-27.439516975481837, -58.78641625033519],
+        "desc": "Playa en el extremo norte de la ciudad."
       }
     ],
     "hotel": [
@@ -336,11 +131,8 @@
         "nombre": "Turismo Hotel Casino",
         "tipo": "hotel",
         "estrellas": 5,
-        "lat_lng": [
-          -27.4615,
-          -58.84
-        ],
-        "desc": "Alojamiento de lujo y entretenimiento.",
+        "lat_lng": [-27.4615, -58.84],
+        "desc": "Alojamiento de lujo y entretenimiento frente al río.",
         "wp": "5493794000000"
       }
     ],
@@ -348,21 +140,115 @@
       {
         "nombre": "Hospital Escuela",
         "tipo": "salud",
-        "lat_lng": [
-          -27.4745,
-          -58.833
-        ],
+        "lat_lng": [-27.4745, -58.833],
         "desc": "Atención de urgencias.",
         "wp": "107"
+      }
+    ],
+    "estacionamiento": [
+      {
+        "nombre": "Estacionamiento San Juan",
+        "tipo": "estacionamiento",
+        "estrellas": 4,
+        "lat_lng": [-27.4678, -58.8345],
+        "desc": "Estacionamiento techado céntrico por hora y estadía. Abierto 24hs con vigilancia.",
+        "opensAt": 0,
+        "closesAt": 24,
+        "capacidadMax": 60
       },
       {
-        "nombre": "Farmacia Red",
-        "tipo": "farmacia",
-        "lat_lng": [
-          -27.467,
-          -58.836
-        ],
-        "desc": "Farmacia céntrica."
+        "nombre": "Parking Centro Plaza",
+        "tipo": "estacionamiento",
+        "estrellas": 3,
+        "lat_lng": [-27.4650, -58.8380],
+        "desc": "Playa de estacionamiento al aire libre. Sistema de barrera automatizado.",
+        "opensAt": 7,
+        "closesAt": 22,
+        "capacidadMax": 35
+      },
+      {
+        "nombre": "Garage del Teatro",
+        "tipo": "estacionamiento",
+        "estrellas": 5,
+        "lat_lng": [-27.4645, -58.8360],
+        "desc": "Aparcamiento subterráneo seguro, ideal para eventos culturales.",
+        "opensAt": 8,
+        "closesAt": 23,
+        "capacidadMax": 100
+      }
+    ],
+    "parada": [
+      {
+        "nombre": "Parada Puerto (Costanera)",
+        "tipo": "parada",
+        "estrellas": 5,
+        "lat_lng": [-27.4614, -58.8381],
+        "desc": "Parada principal frente al puerto. Conecta con el centro y barrios periféricos.",
+        "lineas": ["101 A", "101 B", "101 C", "106 C"]
+      },
+      {
+        "nombre": "Parada Plaza Cabral",
+        "tipo": "parada",
+        "estrellas": 4,
+        "lat_lng": [-27.4686, -58.8312],
+        "desc": "Nodo central de transbordo en el microcentro comercial.",
+        "lineas": ["102 A", "103 B", "104 A", "104 C", "108 A", "108 C"]
+      },
+      {
+        "nombre": "Parada Plaza Vera (Peatonal)",
+        "tipo": "parada",
+        "estrellas": 5,
+        "lat_lng": [-27.4672, -58.8374],
+        "desc": "Parada de alto tráfico en la intersección del centro comercial.",
+        "lineas": ["103 A", "105 B", "106 A", "106 B"]
+      },
+      {
+        "nombre": "Parada Hospital Escuela",
+        "tipo": "parada",
+        "estrellas": 4,
+        "lat_lng": [-27.4745, -58.8330],
+        "desc": "Parada clave sobre Av. 3 de Abril, acceso rápido a centro de salud.",
+        "lineas": ["105 A", "105 B", "109", "110"]
+      },
+      {
+        "nombre": "Parada Terminal de Ómnibus",
+        "tipo": "parada",
+        "estrellas": 4,
+        "lat_lng": [-27.4850, -58.7880],
+        "desc": "Conexión directa con micros de larga y media distancia.",
+        "lineas": ["102 C", "103 B", "106 B", "110"]
+      },
+      {
+        "nombre": "Parada Campus UNNE",
+        "tipo": "parada",
+        "estrellas": 5,
+        "lat_lng": [-27.4680, -58.7900],
+        "desc": "Acceso principal a las facultades de Av. Libertad.",
+        "lineas": ["104 B", "105 C", "109", "110"]
+      },
+      {
+        "nombre": "Parada Shopping Centenario",
+        "tipo": "parada",
+        "estrellas": 4,
+        "lat_lng": [-27.4720, -58.8050],
+        "desc": "Parada comercial sobre Av. Centenario.",
+        "lineas": ["105 A", "105 B", "109"]
+      },
+      {
+        "nombre": "Parada Rotonda Virgen de Itatí",
+        "tipo": "parada",
+        "estrellas": 4,
+        "lat_lng": [-27.4650, -58.7750],
+        "desc": "Nodo de conexión hacia el este y salida de la ciudad.",
+        "lineas": ["102 C", "104 C", "105 C", "109"]
+      },
+      {
+        "nombre": "Parada Plaza Libertad",
+        "tipo": "parada",
+        "estrellas": 3,
+        "lat_lng": [-27.4780, -58.8250],
+        "desc": "Conexión sur de la Avenida 3 de Abril.",
+        "lineas": ["104 B", "108 A", "110"]
       }
     ]
   }

@@ -1,30 +1,25 @@
 /* ==========================================
-   RUTA CORRENTINA - ULTIMATE EDITION v6.3
-   Dev: Alejandro (TechFix)
+   RUTA CORRENTINA - ULTIMATE EDITION v12.6
+   Dev: Alejandro
    ========================================== */
 
 import { 
-    db, auth, collection, doc, setDoc, getDoc, addDoc, query, where, orderBy, limit, serverTimestamp, getDocs,
+    db, auth, functions, httpsCallable, collection, doc, setDoc, getDoc, addDoc, query, where, orderBy, limit, serverTimestamp, getDocs,
     onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile 
 } from './firebase.js';
 
-// --- CONFIGURACIÓN ---
 const CONFIG = {
     radioCheckin: 400, 
-    radioNotificacion: 500,
     gpsOptions: { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 },
-    defaultCenter: [-27.469, -58.830], 
-    techFixCoords: [-27.469, -58.830],
-    GEMINI_API_KEY: "AIzaSyA5nqH0AgAMMEWkwmIVWMUMvViOTqi8s3U" // Tu clave real de Google
+    defaultCenter: [-27.469, -58.830]
 };
 
 const PREMIOS = [
-    { id: 1, nombre: "10% OFF en Reparación", costo: 100 },
-    { id: 2, nombre: "Limpieza de Puerto Gratis", costo: 300 },
-    { id: 3, nombre: "Vidrio Templado Gratis", costo: 500 }
+    { id: 1, nombre: "Descuento en Heladería", costo: 100 },
+    { id: 2, nombre: "Paseo en Lancha Gratis", costo: 300 },
+    { id: 3, nombre: "Cena VIP para 2", costo: 500 }
 ];
 
-// --- ESTADO GLOBAL ---
 let state = {
     map: null,
     markersCluster: null,
@@ -37,18 +32,33 @@ let state = {
     lugaresFiltrados: [],
     visitados: [],
     favoritos: [],
+    reportes: [], 
     filtroActual: 'todos',
     busquedaActual: '',
-    notificadoTechFix: false
+    isNavigating: false,
+    alertaParadaActiva: null,
+    activeLayers: {
+        turismo: true,
+        museo: true,
+        paseos: true,
+        gastronomia: true,
+        playa: true,
+        hotel: true,
+        salud: true,
+        estacionamiento: true,
+        parada: true,
+        reportes: true
+    }
 };
 
-// --- INICIO ---
 document.addEventListener('DOMContentLoaded', initApp);
 window.addEventListener('online', flushOfflineQueue);
 
 async function initApp() {
-    // if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
-    
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').catch(err => console.log("SW Falló", err));
+    }
+
     checkConnection();
     setupHeaderDate();
 
@@ -56,17 +66,50 @@ async function initApp() {
         const splash = document.getElementById('splash-screen');
         if(splash) {
             splash.style.opacity = '0';
-            setTimeout(() => splash.remove(), 600);
+            setTimeout(() => {
+                splash.remove();
+                if(state.map) state.map.invalidateSize(); 
+            }, 600);
+        } else {
+            if(state.map) state.map.invalidateSize();
         }
     }, 1500);
 
     initMap();
     initTheme();
     
+    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+    window.addEventListener('deviceorientation', handleOrientation, true);
+    
+    window.addEventListener('resize', () => {
+        if(state.map) setTimeout(() => state.map.invalidateSize(), 300);
+    });
+    
     onAuthStateChanged(auth, async (user) => {
         state.currentUser = user;
         if (user) {
             toggleAuthUI(true);
+
+            const localFavsRaw = localStorage.getItem('localFavs');
+            if (localFavsRaw) {
+                try {
+                    const localFavs = JSON.parse(localFavsRaw);
+                    if (localFavs.length > 0) {
+                        const userRef = doc(db, "users", user.uid);
+                        const snap = await getDoc(userRef);
+                        let userFavs = snap.exists() ? (snap.data().favoritos || []) : [];
+                        
+                        const mergedFavs = [...new Set([...userFavs, ...localFavs])];
+                        
+                        await setDoc(userRef, { favoritos: mergedFavs }, { merge: true });
+                        localStorage.removeItem('localFavs'); 
+                        showToast("🔄 Favoritos guardados sincronizados con tu cuenta.");
+                    }
+                } catch (e) {
+                    console.error("Error migrando favoritos locales", e);
+                }
+            }
+
             await cargarPerfil(user);
         } else {
             toggleAuthUI(false);
@@ -76,8 +119,17 @@ async function initApp() {
     });
 
     await fetchLugares();
+    await cargarReportesComunitarios();
     iniciarGPS();
     fetchWeatherReal();
+}
+
+function handleOrientation(e) {
+    let compass = e.webkitCompassHeading || Math.abs(e.alpha - 360);
+    const dot = document.querySelector('.user-dir-cone');
+    if(dot && compass) {
+        dot.style.transform = `translate(-50%, -50%) rotate(${compass}deg)`;
+    }
 }
 
 function setupHeaderDate() {
@@ -87,15 +139,26 @@ function setupHeaderDate() {
     const hour = d.getHours();
     
     let saludo = "Hola, Viajero";
-    if(hour >= 6 && hour < 12) saludo = "Buenos días ☀️";
-    else if(hour >= 12 && hour < 20) saludo = "Buenas tardes 🧉";
-    else saludo = "Buenas noches 🌙";
+    if(hour >= 6 && hour < 12) saludo = "Buenos días";
+    else if(hour >= 12 && hour < 20) saludo = "Buenas tardes";
+    else saludo = "Buenas noches";
 
     const dateEl = document.getElementById('date-display');
     const greetEl = document.getElementById('greeting-display');
     
     if(dateEl) dateEl.innerText = dateStr;
-    if(greetEl) greetEl.innerText = saludo;
+    if(greetEl) {
+        const mateSvg = `
+            <svg class="mate-svg-icon" viewBox="0 0 32 32" width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 4L13 13.5" stroke="#007AFF" stroke-width="2.5" stroke-linecap="round"/>
+                <path d="M19 3L22 6" stroke="#007AFF" stroke-width="2.5" stroke-linecap="round"/>
+                <path d="M8 11H24C24 11 25.5 13 24 15H8C6.5 13 8 11 8 11Z" fill="#007AFF" opacity="0.25" stroke="#007AFF" stroke-width="2"/>
+                <path d="M9 14C9 14 6 22 16 26C26 22 23 14 23 14H9Z" fill="#007AFF" stroke="#007AFF" stroke-width="2" stroke-linejoin="round"/>
+                <path d="M12 22H20C20 24 19 26 16 26C13 26 12 24 12 22Z" fill="#007AFF"/>
+            </svg>
+        `;
+        greetEl.innerHTML = `${saludo} <span class="mate-badge" title="¡Un buen mate correntino!">${mateSvg}</span>`;
+    }
 }
 
 async function fetchLugares() {
@@ -105,20 +168,6 @@ async function fetchLugares() {
         const data = await resp.json();
         state.lugares = flattenLugares(data);
         
-        if(!state.lugares.some(l => l.nombre.toLowerCase().includes('techfix'))) {
-            state.lugares.unshift({
-                nombre: "TechFix Taller",
-                categoria: "techfix servicios",
-                lat: CONFIG.techFixCoords[0],
-                lng: CONFIG.techFixCoords[1],
-                desc: "Servicio técnico oficial. Reparación de PC, Celulares y Consolas.",
-                img: null,
-                wp: "5493794000000",
-                destacado: true,
-                opensAt: 8, closesAt: 20
-            });
-        }
-        
         state.lugares.forEach(l => { if(!l.opensAt) { l.opensAt = 9; l.closesAt = 22; } });
         state.lugaresFiltrados = state.lugares;
         renderMarkers(state.lugares);
@@ -126,6 +175,28 @@ async function fetchLugares() {
     } catch (e) {
         console.error(e);
         showToast("⚠️ Usando datos cacheados");
+    }
+}
+
+async function cargarReportesComunitarios() {
+    try {
+        const querySnapshot = await getDocs(collection(db, "reportes"));
+        state.reportes = [];
+        querySnapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            state.reportes.push({
+                nombre: data.tipo,
+                categoria: "reportes",
+                lat: data.lat,
+                lng: data.lng,
+                desc: data.descripcion || "Incidente reportado por la comunidad.",
+                img: null,
+                opensAt: 0, closesAt: 24
+            });
+        });
+        state.lugares = [...state.lugares, ...state.reportes];
+    } catch(e) {
+        console.warn("No se pudieron cargar reportes remotos", e);
     }
 }
 
@@ -184,7 +255,6 @@ function flattenLugares(data) {
     return out.filter(l => l.lat && l.lng);
 }
 
-// --- MAPA ---
 function initMap() {
     state.map = L.map('map', { zoomControl: false, attributionControl: false }).setView(CONFIG.defaultCenter, 14);
     updateMapTiles();
@@ -206,7 +276,10 @@ function initMap() {
     });
     state.map.addLayer(state.markersCluster);
     
-    setTimeout(() => state.map.fire('load'), 800);
+    setTimeout(() => {
+        state.map.fire('load');
+        state.map.invalidateSize(); 
+    }, 800);
 }
 
 function updateMapTiles() {
@@ -218,29 +291,43 @@ function updateMapTiles() {
     L.tileLayer(url, { maxZoom: 19 }).addTo(state.map);
 }
 
+window.toggleLayerPanel = () => {
+    const panel = document.getElementById('layer-panel');
+    panel.classList.toggle('hidden');
+};
+
+window.toggleLayer = (cat, show) => {
+    state.activeLayers[cat] = show;
+    ejecutarFiltros();
+};
+
 function renderMarkers(list) { 
     state.markersCluster.clearLayers(); 
     list.forEach(l => { 
-        let iconClass = 'fa-map-marker-alt';
-        let colorClass = l.categoria.split(' ')[0];
-        
-        if(l.categoria.includes('turismo')) iconClass = 'fa-camera';
-        if(l.categoria.includes('comida') || l.categoria.includes('gastro')) iconClass = 'fa-utensils';
-        if(l.categoria.includes('playa')) iconClass = 'fa-umbrella-beach';
-        if(l.categoria.includes('techfix')) { iconClass = 'fa-wrench'; colorClass = 'techfix'; }
+        let baseCat = l.categoria.split(' ')[0];
+        if(baseCat === 'museo' || baseCat === 'paseos') baseCat = 'turismo';
+        if(state.activeLayers[baseCat] === false) return;
 
-        const isTechFix = l.nombre.toLowerCase().includes('techfix');
+        let iconClass = 'location-outline';
+        let colorClass = baseCat;
+        
+        if(l.categoria.includes('turismo') || l.categoria.includes('museo')) iconClass = 'camera';
+        if(l.categoria.includes('comida') || l.categoria.includes('gastro')) iconClass = 'restaurant';
+        if(l.categoria.includes('playa')) iconClass = 'umbrella';
+        if(l.categoria.includes('estacionamiento')) { iconClass = 'car'; colorClass = 'gray'; }
+        if(l.categoria.includes('parada')) { iconClass = 'bus'; colorClass = 'bus'; }
+        if(l.categoria.includes('reportes')) { iconClass = 'warning'; colorClass = 'report'; }
+
         const customHtml = `
-            <div class="pin-head ${colorClass} ${isTechFix ? 'pulse-gold' : ''}">
-                <i class="fas ${iconClass}"></i>
-            </div>
-            <div class="pin-point"></div>`;
+            <div class="pin-head ${colorClass}">
+                <ion-icon name="${iconClass}"></ion-icon>
+            </div>`;
 
         const icon = L.divIcon({ 
-            className: `custom-pin ${isTechFix ? 'z-top' : ''}`, 
+            className: `custom-pin`, 
             html: customHtml, 
-            iconSize:[40,50], 
-            iconAnchor:[20,50] 
+            iconSize:[32,32], 
+            iconAnchor:[16,16] 
         }); 
         
         const marker = L.marker([l.lat,l.lng],{icon});
@@ -255,7 +342,32 @@ window.filtrarInput = (val) => {
     debounceTimer = setTimeout(() => {
         state.busquedaActual = val.toLowerCase(); 
         ejecutarFiltros(); 
+        mostrarSugerencias(state.busquedaActual);
     }, 300);
+};
+
+function mostrarSugerencias(val) {
+    const box = document.getElementById('search-results');
+    if(!val) { box.classList.add('hidden'); return; }
+    
+    const sugerencias = state.lugares.filter(l => l.nombre.toLowerCase().includes(val)).slice(0, 5);
+    if(sugerencias.length === 0) { box.classList.add('hidden'); return; }
+    
+    box.innerHTML = sugerencias.map(l => `
+        <div class="search-result-item" onclick="seleccionarSugerencia('${l.nombre}')">
+            <ion-icon name="location-outline"></ion-icon> <span>${l.nombre}</span>
+        </div>
+    `).join('');
+    
+    box.classList.remove('hidden');
+}
+
+window.seleccionarSugerencia = (nombre) => {
+    document.getElementById('buscador-input').value = nombre;
+    document.getElementById('search-results').classList.add('hidden');
+    state.busquedaActual = nombre.toLowerCase();
+    ejecutarFiltros();
+    abrirFichaNombre(nombre);
 };
 
 window.filtrarBoton = (cat, btn) => {
@@ -274,6 +386,8 @@ function ejecutarFiltros() {
         let catMatch = true;
         if(filtroActual === 'abierto') {
             catMatch = (l.opensAt <= horaActual && l.closesAt > horaActual);
+        } else if (filtroActual === 'favoritos') {
+            catMatch = state.favoritos.includes(l.nombre);
         } else if (filtroActual !== 'todos') {
             catMatch = JSON.stringify(l).toLowerCase().includes(filtroActual);
         }
@@ -300,36 +414,77 @@ window.iniciarGPS = () => {
     if(navigator.geolocation) {
         navigator.geolocation.watchPosition(p => { 
             state.userCoords = { lat: p.coords.latitude, lng: p.coords.longitude }; 
+            
             if(!state.userMarker) {
+                const htmlIcon = `<div class="user-dir-cone"></div>`;
                 state.userMarker = L.marker([state.userCoords.lat, state.userCoords.lng], {
-                    icon: L.divIcon({className:'user-dot'})
+                    icon: L.divIcon({className:'user-dot', html: htmlIcon, iconSize: [18,18]})
                 }).addTo(state.map);
             } else {
                 state.userMarker.setLatLng([state.userCoords.lat, state.userCoords.lng]);
             }
-            checkGeofence();
+            
+            if(state.isNavigating) {
+                state.map.panTo([state.userCoords.lat, state.userCoords.lng], {animate: true, duration: 1});
+            }
+
+            if(state.alertaParadaActiva) {
+                const distParada = getDistance(state.userCoords.lat, state.userCoords.lng, state.alertaParadaActiva.lat, state.alertaParadaActiva.lng);
+                if(distParada <= 150) {
+                    showToast(`🚨 ¡Estás a pocos metros de ${state.alertaParadaActiva.nombre}!`);
+                    if(navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
+                    state.alertaParadaActiva = null; 
+                }
+            }
+
             actualizarBotonCheckin(); 
-        }, (err) => { console.warn("GPS Warn", err); }, CONFIG.gpsOptions); 
+        }, (err) => { 
+            console.warn("GPS Warn", err); 
+            let msg = "⚠️ No se pudo obtener tu ubicación.";
+            if (err.code === 1) msg = "⚠️ Permiso GPS denegado. Revísalo en tu navegador.";
+            if (err.code === 2) msg = "⚠️ Señal GPS no disponible en este momento.";
+            if (err.code === 3) msg = "⚠️ Tiempo de espera agotado buscando señal.";
+            showToast(msg);
+        }, CONFIG.gpsOptions); 
+    } else {
+        showToast("⚠️ Tu dispositivo no soporta GPS.");
     }
 };
 
-function checkGeofence() {
-    if(!state.userCoords || state.notificadoTechFix) return;
-    const dist = getDistance(state.userCoords.lat, state.userCoords.lng, CONFIG.techFixCoords[0], CONFIG.techFixCoords[1]);
-    if(dist < CONFIG.radioNotificacion) {
-        showToast("🔔 ¡Estás cerca de TechFix! Pasa a saludar.");
-        if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
-        state.notificadoTechFix = true;
+window.abrirModalReporte = () => { document.getElementById('modal-reporte').classList.add('active'); };
+window.cerrarModalReporte = () => { document.getElementById('modal-reporte').classList.remove('active'); };
+
+window.enviarReporte = async () => {
+    if(!state.userCoords) return showToast("⚠️ Esperando señal GPS...");
+    const tipo = document.getElementById('tipo-reporte').value;
+    const desc = document.getElementById('desc-reporte').value.trim();
+
+    const nuevoReporte = {
+        tipo: tipo,
+        descripcion: desc || tipo,
+        lat: state.userCoords.lat,
+        lng: state.userCoords.lng,
+        fecha: serverTimestamp(),
+        usuario: state.currentUser ? state.currentUser.displayName || 'Anónimo' : 'Anónimo'
+    };
+
+    try {
+        await addDoc(collection(db, "reportes"), nuevoReporte);
+        showToast("⚠️ ¡Incidente reportado con éxito!");
+        cerrarModalReporte();
+        document.getElementById('desc-reporte').value = '';
+        await cargarReportesComunitarios();
+        renderMarkers(state.lugares);
+    } catch(e) {
+        showToast("❌ Error al enviar reporte");
     }
-}
+};
 
 window.iniciarRuta = (destinoParam) => {
     let destinoLatLng;
     if(destinoParam === 'ficha' && state.currentPlace) {
         destinoLatLng = L.latLng(state.currentPlace.lat, state.currentPlace.lng);
         cerrarFicha();
-    } else if(destinoParam === 'techfix') {
-        destinoLatLng = L.latLng(CONFIG.techFixCoords);
     } else if (destinoParam === 'historica') destinoLatLng = L.latLng(-27.463049,-58.839644); 
     else if (destinoParam === 'costanera') destinoLatLng = L.latLng(-27.477179,-58.855176);
 
@@ -351,6 +506,8 @@ window.iniciarRuta = (destinoParam) => {
         document.getElementById('nav-time').innerText = Math.round(s.totalTime/60) + " min";
         document.getElementById('nav-dist').innerText = (s.totalDistance/1000).toFixed(1) + " km";
         document.getElementById('nav-ui-bottom').classList.add('active');
+        state.isNavigating = true;
+        state.map.flyTo([state.userCoords.lat, state.userCoords.lng], 17);
     });
 
     cambiarTab('map');
@@ -362,6 +519,7 @@ window.finalizarViaje = () => {
         state.routingControl = null;
     }
     document.getElementById('nav-ui-bottom').classList.remove('active');
+    state.isNavigating = false;
 };
 
 window.refreshFeed = () => {
@@ -374,7 +532,6 @@ function renderFeedSkeletons() {
     if(c) c.innerHTML = Array(4).fill('<div class="skeleton" style="height:180px; border-radius:28px;"></div>').join('');
 }
 
-// --- ACTUALIZACIÓN DE TARJETAS (NUEVO RENDER v6.3) ---
 function renderFeed(list) { 
     const c = document.getElementById('feed-container'); 
     if(!c) return;
@@ -382,25 +539,39 @@ function renderFeed(list) {
         c.innerHTML = '<div style="grid-column:span 2; text-align:center; padding:20px; color:#888">No hay lugares para mostrar.</div>'; 
         return; 
     } 
+
+    let renderList = [...list];
+    if(state.userCoords) {
+        renderList.sort((a, b) => {
+            const distA = getDistance(state.userCoords.lat, state.userCoords.lng, a.lat, a.lng);
+            const distB = getDistance(state.userCoords.lat, state.userCoords.lng, b.lat, b.lng);
+            return distA - distB;
+        });
+    }
     
-    c.innerHTML = list.map((l, index) => { 
+    c.innerHTML = renderList.map((l, index) => { 
         const isFav = state.favoritos.includes(l.nombre); 
         
-        // Determinar icono y clase de color según la categoría
-        let catIcon = 'fa-map-marker-alt';
+        let catIcon = 'location-outline';
         let colorClass = l.categoria.split(' ')[0];
         
-        if(l.categoria.includes('turismo')) catIcon = 'fa-camera';
-        if(l.categoria.includes('gastronomia') || l.categoria.includes('comida')) catIcon = 'fa-utensils';
-        if(l.categoria.includes('playa')) catIcon = 'fa-umbrella-beach';
-        if(l.categoria.includes('techfix')) { catIcon = 'fa-wrench'; colorClass = 'techfix'; }
+        if(l.categoria.includes('turismo') || l.categoria.includes('museo')) catIcon = 'camera';
+        if(l.categoria.includes('gastronomia') || l.categoria.includes('comida')) catIcon = 'restaurant';
+        if(l.categoria.includes('playa')) catIcon = 'umbrella';
+        if(l.categoria.includes('estacionamiento')) { catIcon = 'car'; colorClass = 'gray'; }
+        if(l.categoria.includes('parada')) { catIcon = 'bus'; colorClass = 'bus'; }
+        if(l.categoria.includes('reportes')) { catIcon = 'warning'; colorClass = 'report'; }
 
-        // Placeholder si no hay imagen
         const imgUrl = l.img || 'https://via.placeholder.com/400x300?text=Ruta+Correntina';
-
-        // Si es el primer elemento, hacerlo "Hero Card" (más grande)
         const cardClass = index === 0 ? 'card-modern card-hero' : 'card-modern';
         
+        let distanciaTxt = '';
+        if(state.userCoords) {
+            const meters = getDistance(state.userCoords.lat, state.userCoords.lng, l.lat, l.lng);
+            const km = meters < 1000 ? `${Math.round(meters)} m` : `${(meters/1000).toFixed(1)} km`;
+            distanciaTxt = `<span class="card-dist-badge"><ion-icon name="navigate"></ion-icon> ${km}</span>`;
+        }
+
         return `
         <div class="${cardClass}" onclick="event.target.closest('.card-fav-btn') ? toggleFavorite('${l.nombre}') : abrirFichaNombre('${l.nombre}')">
             <img src="${imgUrl}" loading="lazy" alt="${l.nombre}">
@@ -408,19 +579,21 @@ function renderFeed(list) {
             <div class="card-gradient"></div>
 
             <span class="card-badge-cat ${colorClass}">
-                <i class="fas ${catIcon}"></i> 
+                <ion-icon name="${catIcon}"></ion-icon> 
                 ${l.categoria.split(' ')[0]}
             </span>
 
+            ${distanciaTxt}
+
             <button class="card-fav-btn ${isFav?'active':''}">
-                <i class="${isFav ? 'fas' : 'far'} fa-heart"></i>
+                <ion-icon name="${isFav ? 'heart' : 'heart-outline'}"></ion-icon>
             </button>
 
             <div class="card-info-box">
                 <h3>${l.nombre}</h3>
                 <div class="card-actions-mini">
-                    <span onclick="event.stopPropagation(); abrirFichaNombre('${l.nombre}')"><i class="fas fa-info-circle"></i> Ver</span>
-                    <span onclick="event.stopPropagation(); cambiarTab('map'); setTimeout(()=>state.map.flyTo([${l.lat},${l.lng}],16),300)"><i class="fas fa-map"></i> Mapa</span>
+                    <span onclick="event.stopPropagation(); abrirFichaNombre('${l.nombre}')"><ion-icon name="information-circle"></ion-icon> Ver</span>
+                    <span onclick="event.stopPropagation(); cambiarTab('map'); setTimeout(()=>state.map.flyTo([${l.lat},${l.lng}],16),300)"><ion-icon name="map"></ion-icon> Mapa</span>
                 </div>
             </div>
         </div>`;
@@ -430,8 +603,10 @@ function renderFeed(list) {
 window.abrirFicha = (l) => {
     state.currentPlace = l;
     const isFav = state.favoritos.includes(l.nombre);
-    const bgStyle = l.img ? `<img src="${l.img}" loading="lazy" onerror="this.src='https://via.placeholder.com/400x300?text=Ruta+Correntina'">` : `<div style="width:100%;height:100%;background:linear-gradient(135deg,#ccc,#999)"></div>`;
     
+    const bgStyle = l.img ? `<img src="${l.img}" loading="lazy" onerror="this.parentElement.style.height='70px'; this.style.display='none';">` : ``;
+    const heroHeightStyle = l.img ? `` : `height: 70px; background: transparent;`;
+
     let menuHTML = '';
     if(l.menu && l.menu.length > 0) {
         menuHTML = `
@@ -447,11 +622,61 @@ window.abrirFicha = (l) => {
         `;
     }
 
+    let parkingDispoHTML = '';
+    if(l.categoria.includes('estacionamiento')) {
+        const max = l.capacidadMax || 50;
+        const ocupados = Math.floor(Math.random() * max);
+        const libres = max - ocupados;
+        const colorDispo = libres > 15 ? 'var(--success)' : (libres > 5 ? '#FF9500' : 'var(--danger)');
+        
+        parkingDispoHTML = `
+            <div style="background: rgba(0,0,0,0.03); padding: 15px; border-radius: 16px; margin-top: 15px; display: flex; align-items: center; justify-content: space-between; border: 1px solid rgba(0,0,0,0.05);">
+                <div style="display:flex; align-items:center; gap: 15px;">
+                    <div style="width:45px; height:45px; border-radius:12px; background:${colorDispo}; color:white; display:flex; align-items:center; justify-content:center; font-size:1.3rem; box-shadow: 0 4px 10px ${colorDispo}40;">
+                        <ion-icon name="car"></ion-icon>
+                    </div>
+                    <div style="display:flex; flex-direction:column;">
+                        <span style="font-weight:800; font-size:1.1rem; color:var(--text-main);">${libres} Libres</span>
+                        <small style="color:var(--text-sec); font-weight: 500;">de ${max} espacios totales</small>
+                    </div>
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                    <span style="font-size:0.75rem; font-weight:800; color:${colorDispo}; background:rgba(0,0,0,0.05); padding:4px 8px; border-radius:8px;">EN VIVO</span>
+                </div>
+            </div>
+        `;
+    }
+
+    let lineasHTML = '';
+    if(l.lineas && l.lineas.length > 0) {
+        lineasHTML = `
+            <div style="margin-top: 15px; background: rgba(88,86,214,0.05); padding: 15px; border-radius: 16px; border: 1px solid rgba(88,86,214,0.1);">
+                <h3 style="font-size: 0.85rem; color: #5856D6; text-transform: uppercase; margin: 0 0 10px 0; font-weight: 800;"><ion-icon name="git-branch"></ion-icon> Líneas que pasan por aquí</h3>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+                    ${l.lineas.map(linea => `<span onclick="filtrarPorLinea('${linea}')" style="background: linear-gradient(135deg, #5856D6, #AF52DE); color: white; padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor:pointer; box-shadow: 0 2px 8px rgba(88,86,214,0.3);">Línea ${linea}</span>`).join('')}
+                </div>
+                <button onclick="activarAlertaParada('${l.nombre.replace(/'/g, "")}', ${l.lat}, ${l.lng})" class="btn-action secondary" style="width: 100%; background: rgba(88,86,214,0.1); color: #5856D6; font-size: 0.9rem; padding: 10px;">
+                    <ion-icon name="notifications"></ion-icon> Avisarme al llegar a esta parada
+                </button>
+            </div>
+        `;
+    }
+
+    let audioGuiaHTML = '';
+    if(l.desc && (l.categoria.includes('turismo') || l.categoria.includes('museo') || l.categoria.includes('paseos'))) {
+        audioGuiaHTML = `
+            <button onclick="reproducirAudioGuia('${l.nombre.replace(/'/g, "")}', '${l.desc.replace(/'/g, "")}')" class="btn-action secondary" style="margin-top: 12px; background: rgba(0,122,255,0.1); color: var(--primary);">
+                <ion-icon name="volume-high"></ion-icon> Escuchar Audio-Guía
+            </button>
+        `;
+    }
+
     document.getElementById('ficha-lugar').innerHTML = `
-        <div class="ficha-hero">
+        <div class="sheet-grabber"></div>
+        <div class="ficha-hero" style="${heroHeightStyle}">
             ${bgStyle}
-            <button class="btn-back-float" onclick="cerrarFicha()"><i class="fas fa-chevron-down"></i></button>
-            <button class="btn-fav-float ${isFav?'active':''}" onclick="toggleFavorite('${l.nombre}')"><i class="${isFav ? 'fas' : 'far'} fa-heart"></i></button>
+            <button class="btn-back-float" onclick="cerrarFicha()"><ion-icon name="close"></ion-icon></button>
+            <button class="btn-fav-float ${isFav?'active':''}" onclick="toggleFavorite('${l.nombre}')"><ion-icon name="${isFav ? 'heart' : 'heart-outline'}"></ion-icon></button>
         </div>
         <div class="ficha-content">
             <div class="ficha-header">
@@ -461,18 +686,23 @@ window.abrirFicha = (l) => {
                 </div>
                 <h1>${l.nombre}</h1>
                 <p>${l.desc || 'Explora este lugar increíble.'}</p>
+                ${audioGuiaHTML}
             </div>
-            <div class="action-grid">
-                <button onclick="iniciarRuta('ficha')" class="btn-action primary"><i class="fas fa-location-arrow"></i> IR AHORA</button>
-                <button onclick="compartirLugar('${l.nombre}')" class="btn-action secondary"><i class="fas fa-share-alt"></i></button>
-                ${l.wp ? `<a href="https://wa.me/${l.wp}" target="_blank" class="btn-action whatsapp"><i class="fab fa-whatsapp"></i></a>` : ''}
+            
+            ${parkingDispoHTML}
+            ${lineasHTML}
+
+            <div class="action-grid" style="margin-top: 15px;">
+                <button onclick="iniciarRuta('ficha')" class="btn-action primary"><ion-icon name="navigate"></ion-icon> IR AHORA</button>
+                <button onclick="compartirLugar('${l.nombre}')" class="btn-action secondary"><ion-icon name="share-social"></ion-icon></button>
+                ${l.wp ? `<a href="https://wa.me/${l.wp}" target="_blank" class="btn-action whatsapp"><ion-icon name="logo-whatsapp"></ion-icon></a>` : ''}
             </div>
             ${menuHTML}
-            <button id="btn-checkin-dynamic" onclick="triggerCheckIn()" class="btn-checkin-big disabled"><i class="fas fa-satellite-dish"></i> <span>Ubicando...</span></button>
+            <button id="btn-checkin-dynamic" onclick="triggerCheckIn()" class="btn-checkin-big disabled"><ion-icon name="radio"></ion-icon> <span>Ubicando...</span></button>
             <input type="file" id="foto-checkin" accept="image/*" capture="environment" style="display:none" onchange="procesarFotoCheckin(this)">
             <div class="comments-section">
                 <h3>Reseñas</h3>
-                <div class="review-input-box"><input type="text" id="input-review" placeholder="Deja tu opinión..."><button onclick="enviarComentario()"><i class="fas fa-paper-plane"></i></button></div>
+                <div class="review-input-box"><input type="text" id="input-review" placeholder="Deja tu opinión..."><button onclick="enviarComentario()"><ion-icon name="send"></ion-icon></button></div>
                 <div id="lista-comentarios">Cargando...</div>
             </div>
         </div>`;
@@ -482,9 +712,37 @@ window.abrirFicha = (l) => {
     cargarComentarios(l.nombre);
 };
 
+window.activarAlertaParada = (nombre, lat, lng) => {
+    state.alertaParadaActiva = { nombre, lat, lng };
+    cerrarFicha();
+    showToast(`🔔 Alerta activada: Te avisaremos al llegar a ${nombre}`);
+};
+
+window.reproducirAudioGuia = (titulo, texto) => {
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(`Te presentamos ${titulo}. ${texto}`);
+        utterance.lang = 'es-AR';
+        utterance.rate = 1.0;
+        window.speechSynthesis.speak(utterance);
+        showToast("🔊 Reproduciendo audio-guía turística...");
+    } else {
+        showToast("⚠️ Tu navegador no soporta audio-guía");
+    }
+};
+
+window.filtrarPorLinea = (linea) => {
+    cerrarFicha();
+    cambiarTab('map');
+    const filtrados = state.lugares.filter(l => l.lineas && l.lineas.includes(linea));
+    state.lugaresFiltrados = filtrados;
+    renderMarkers(filtrados);
+    showToast(`🚌 Filtrando por Línea ${linea}`);
+};
+
 window.cerrarFicha = () => { document.getElementById('ficha-lugar').classList.remove('open'); state.currentPlace = null; };
 window.destinoMagico = () => {
-    const opciones = state.lugares.filter(l => !l.nombre.toLowerCase().includes('techfix'));
+    const opciones = state.lugares.filter(l => !l.categoria.includes('reportes'));
     const random = opciones[Math.floor(Math.random() * opciones.length)];
     if(random) { abrirFichaNombre(random.nombre); showToast(`✨ ¡El destino eligió: ${random.nombre}!`); }
 };
@@ -494,6 +752,7 @@ window.abrirFichaNombre = (n) => {
     if(l) { cambiarTab('map'); setTimeout(()=>{ state.map.flyTo([l.lat,l.lng],16); abrirFicha(l); },300); } 
 };
 
+// --- NUEVO: SISTEMA DE PERFIL MEJORADO AL MÁXIMO ---
 async function cargarPerfil(u) {
     const docRef = doc(db, "users", u.uid);
     const snap = await getDoc(docRef);
@@ -509,39 +768,58 @@ async function cargarPerfil(u) {
         document.getElementById('user-name').innerText = userName;
         document.getElementById('user-avatar').src = userAvatarUrl;
         document.getElementById('header-avatar').src = userAvatarUrl;
-        
-        if(u.email === 'ale@techfix.com') {
-            document.getElementById('badge-role').innerText = "CEO TECHFIX";
-            document.getElementById('badge-role').style.background = "linear-gradient(90deg, #FFD60A, #FF9F0A)";
-        }
 
+        // Cálculos de Experiencia y Niveles
         const xp = state.visitados.length * 100;
         const lvl = Math.floor(xp / 500) + 1;
-        const pct = Math.min(100, (xp % 500) / 500 * 100);
-        document.getElementById('level-badge').innerText = `Lv. ${lvl}`;
-        document.getElementById('current-xp').innerText = `${xp} / ${(lvl*500)} XP`;
-        document.getElementById('xp-bar-fill').style.width = `${pct}%`;
+        const maxXP = lvl * 500;
+        const currentLvlXP = xp % 500;
+        const pct = Math.min(100, (currentLvlXP / 500) * 100);
         
+        // Asignación de Roles según Nivel
+        let rolStr = "Turista Local";
+        let rolColor = "rgba(0,0,0,0.05)";
+        if(lvl >= 2) { rolStr = "Aventurero"; rolColor = "rgba(0, 122, 255, 0.15); color: #007AFF;"; }
+        if(lvl >= 5) { rolStr = "Guía Local"; rolColor = "rgba(52, 199, 89, 0.15); color: #34C759;"; }
+        if(lvl >= 10) { rolStr = "Maestro Correntino"; rolColor = "linear-gradient(90deg, #FFD60A, #FF9F0A); color: black;"; }
+
+        document.getElementById('level-badge').innerText = `Lv. ${lvl}`;
+        document.getElementById('badge-role').innerHTML = rolStr;
+        document.getElementById('badge-role').style = `background: ${rolColor}`;
+        
+        document.getElementById('current-xp').innerText = `${xp} / ${maxXP} XP`;
+        
+        // Animación de la barra de progreso
+        const barFill = document.getElementById('xp-bar-fill');
+        barFill.style.width = '0%';
+        setTimeout(() => { barFill.style.width = `${pct}%`; }, 300);
+        
+        // Puntos
         const puntos = state.visitados.length * 10;
-        document.getElementById('tech-points').innerText = puntos;
-        document.getElementById('canje-points').innerText = puntos;
+        document.getElementById('tech-points').innerText = puntos.toLocaleString('es-AR');
+        document.getElementById('canje-points').innerText = puntos.toLocaleString('es-AR');
+
+        const walletUser = document.getElementById('wallet-user-name');
+        if (walletUser) walletUser.innerText = userName;
 
         document.getElementById('stat-visitados').innerText = state.visitados.length;
         document.getElementById('stat-badges-count').innerText = Math.floor(state.visitados.length / 3); 
 
+        // Lógica de Álbum de Fotos con Empty State
         const galleryItem = document.getElementById('gallery-item');
         const miniGrid = document.getElementById('passport-grid-mini');
         
         if(state.visitados && state.visitados.length > 0) {
-            galleryItem.style.display = 'flex'; // Aparece si tienes fotos
-            const ultimas = state.visitados.slice(-4).reverse(); // Muestra las últimas 4
-            miniGrid.innerHTML = ultimas.map(v => `
-                <div class="mini-photo-wrapper">
-                    <img src="${v.foto}" title="${v.nombre}">
-                </div>
-            `).join('');
+            const ultimas = state.visitados.slice(-10).reverse(); 
+            miniGrid.innerHTML = ultimas.map(v => `<img src="${v.foto}" title="${v.nombre}" loading="lazy">`).join('');
         } else {
-            galleryItem.style.display = 'none'; // Se oculta si está vacío
+            miniGrid.innerHTML = `
+                <div class="album-empty-state">
+                    <ion-icon name="images-outline"></ion-icon>
+                    <p>Tus fotos de check-in aparecerán aquí.</p>
+                    <button onclick="cambiarTab('list')">Explorar lugares</button>
+                </div>
+            `;
         }
         
         renderCoupons(puntos);
@@ -564,7 +842,7 @@ function renderCoupons(puntosUser) {
 }
 
 window.canjearPremio = (id) => {
-    alert("¡Muestra este mensaje en TechFix para validar tu descuento!");
+    alert("¡Muestra este mensaje en el local adherido para validar tu descuento!");
 }
 
 window.toggleRanking = async (show) => {
@@ -628,16 +906,18 @@ window.initTheme = () => {
         updateMapTiles();
     };
 };
+
 window.cambiarTab = (id) => {
     document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active'));
     document.getElementById(`view-${id}`).classList.add('active');
+    
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     const indices = { 'map':0, 'list':1, 'profile':2 };
     document.querySelectorAll('.tab-btn')[indices[id]].classList.add('active');
-    if(id==='map') setTimeout(()=>state.map.invalidateSize(), 200);
+    
+    if(id==='map') setTimeout(()=>state.map.invalidateSize(), 500);
 };
 
-// Auth & Social
 window.toggleAuthMode = () => { const t = document.getElementById('auth-header-text'); const isReg = t.innerText==='Accede a tu pasaporte digital'; t.innerText=isReg?'Crea tu cuenta gratis':'Accede a tu pasaporte digital'; document.getElementById('btn-submit').innerText=isReg?'Registrarse':'Entrar'; document.getElementById('toggle-text').innerText=isReg?'¿Ya tienes cuenta?':'Crear cuenta'; };
 window.handleSubmit = (e) => { 
     e.preventDefault(); 
@@ -653,7 +933,56 @@ window.handleSubmit = (e) => {
     }
 };
 window.cerrarSesion = () => signOut(auth).then(()=>window.location.reload());
-window.toggleFavorite = async (n) => { const idx = state.favoritos.indexOf(n); if(idx > -1) state.favoritos.splice(idx, 1); else state.favoritos.push(n); if(state.currentUser) await setDoc(doc(db, "users", state.currentUser.uid), { favoritos: state.favoritos }, { merge: true }); else localStorage.setItem('localFavs', JSON.stringify(state.favoritos)); renderFeed(state.lugaresFiltrados); showToast(idx > -1 ? "💔 Eliminado de favoritos" : "❤️ ¡Agregado a favoritos!"); };
+
+window.toggleFavorite = async (n) => { 
+    const idx = state.favoritos.indexOf(n); 
+    let isFav = false;
+
+    if(idx > -1) {
+        state.favoritos.splice(idx, 1); 
+        showToast("💔 Eliminado de favoritos");
+    } else {
+        state.favoritos.push(n); 
+        isFav = true;
+        showToast("❤️ ¡Agregado a favoritos!");
+    } 
+
+    if(state.currentUser) {
+        await setDoc(doc(db, "users", state.currentUser.uid), { favoritos: state.favoritos }, { merge: true });
+    } else {
+        localStorage.setItem('localFavs', JSON.stringify(state.favoritos));
+    } 
+
+    document.querySelectorAll('.card-modern').forEach(card => {
+        const title = card.querySelector('h3').innerText;
+        if(title === n) {
+            const btn = card.querySelector('.card-fav-btn');
+            const icon = btn.querySelector('ion-icon');
+            if(isFav) {
+                btn.classList.add('active');
+                icon.setAttribute('name', 'heart');
+            } else {
+                btn.classList.remove('active');
+                icon.setAttribute('name', 'heart-outline');
+            }
+        }
+    });
+
+    if (state.currentPlace && state.currentPlace.nombre === n) {
+        const btnFicha = document.querySelector('.btn-fav-float');
+        if (btnFicha) {
+            const iconFicha = btnFicha.querySelector('ion-icon');
+            if(isFav) {
+                btnFicha.classList.add('active');
+                iconFicha.setAttribute('name', 'heart');
+            } else {
+                btnFicha.classList.remove('active');
+                iconFicha.setAttribute('name', 'heart-outline');
+            }
+        }
+    }
+};
+
 window.compartirLugar = (n) => { if (navigator.share) { navigator.share({ title: 'Ruta Correntina', text: `¡Mira: ${n}!`, url: window.location.href }).catch(console.error); } else { showToast("Link copiado"); } };
 window.triggerCheckIn = () => { const btn = document.getElementById('btn-checkin-dynamic'); if(btn.classList.contains('active')) document.getElementById('foto-checkin').click(); };
 window.procesarFotoCheckin = (i) => { if(i.files[0]) { const r = new FileReader(); r.onload=(e)=>confirmarCheckIn(e.target.result); r.readAsDataURL(i.files[0]); }};
@@ -699,15 +1028,28 @@ window.cargarComentarios = async(l) => {
     } catch(e){ b.innerHTML = ''; }
 };
 
-window.abrirEditarPerfil = async () => {
-    const nuevoNombre = prompt("Escribe tu nuevo nombre:", document.getElementById('user-name').innerText);
-    if(nuevoNombre && nuevoNombre.trim() !== "") {
+window.abrirEditarPerfil = () => {
+    const currentName = document.getElementById('user-name').innerText;
+    const input = document.getElementById('input-nuevo-nombre');
+    input.value = currentName;
+    document.getElementById('modal-edit-profile').classList.add('active');
+    setTimeout(() => input.focus(), 100);
+};
+
+window.cerrarEditarPerfil = () => {
+    document.getElementById('modal-edit-profile').classList.remove('active');
+};
+
+window.guardarNuevoNombre = async () => {
+    const nuevoNombre = document.getElementById('input-nuevo-nombre').value.trim();
+    if(nuevoNombre && nuevoNombre !== "") {
         if(state.currentUser) {
             await setDoc(doc(db, "users", state.currentUser.uid), { nombre: nuevoNombre }, { merge: true });
             cargarPerfil(state.currentUser);
             showToast("✅ Perfil actualizado");
         }
     }
+    cerrarEditarPerfil();
 };
 
 window.procesarNuevoAvatar = (input) => {
@@ -715,17 +1057,14 @@ window.procesarNuevoAvatar = (input) => {
         const reader = new FileReader();
         reader.onload = async (e) => {
             const base64Image = e.target.result;
-            
             document.getElementById('user-avatar').src = base64Image;
             document.getElementById('header-avatar').src = base64Image;
-            
             if(state.currentUser) {
                 try {
                     showToast("⏳ Subiendo avatar...");
                     await setDoc(doc(db, "users", state.currentUser.uid), { avatar: base64Image }, { merge: true });
                     showToast("✅ Avatar actualizado");
                 } catch (error) {
-                    console.error("Error subiendo avatar:", error);
                     showToast("❌ Error al guardar");
                     cargarPerfil(state.currentUser);
                 }
@@ -735,11 +1074,7 @@ window.procesarNuevoAvatar = (input) => {
     }
 };
 
-
-/* ==========================================
-   MÓDULO IA GEMINI - GUÍA RUTABOT EDITION
-   ========================================== */
-
+/* --- IA GEMINI (EN BACKEND) --- */
 window.toggleChat = () => {
     const chat = document.getElementById('chat-widget');
     if (!chat) return;
@@ -774,46 +1109,20 @@ window.enviarMensajeIA = async () => {
     try {
         const infoLugares = state.lugares.slice(0, 15).map(l => l.nombre).join(', ');
         
-        const systemPrompt = `Actúa como "Guía RutaBot", el compañero virtual de viajes en Corrientes. 
-        Fuites creado por Alejandro de TechFix.
-        Tu tono es amable, local (usa "chamigo", "gurí" ocasionalmente) y servicial.
-        
-        OBJETIVOS:
-        1. Ayudar con turismo. Lugares que conoces: ${infoLugares}.
-        2. VENTAS SUTILES: Si el usuario menciona problemas técnicos (celular roto, PC lenta, pantalla rota, wifi no anda), DEBES recomendar ir a "TechFix" para solucionarlo.
-        
-        Responde brevemente.`;
-
-        const promptFinal = `${systemPrompt}\n\nUsuario dice: "${textoUsuario}"`;
-
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.GEMINI_API_KEY}`;
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                contents: [{ 
-                    role: "user",
-                    parts: [{ text: promptFinal }] 
-                }] 
-            })
+        const chatConGemini = httpsCallable(functions, 'chatConGemini');
+        const resultado = await chatConGemini({
+            textoUsuario: textoUsuario,
+            infoLugares: infoLugares
         });
 
-        const data = await response.json();
+        const respuestaBot = resultado.data.respuesta;
 
-        if (data.error) {
-            console.error("⛔ Detalle del error de Google:", data.error);
-            throw new Error(data.error.message);
-        }
-        
-        const respuestaBot = data.candidates[0].content.parts[0].text;
         removeMessage(loadingId);
         addMessage(respuestaBot, 'bot');
-
     } catch (error) {
-        console.error("⛔ Error AI completo:", error);
+        console.error("Error conectando con la IA:", error);
         removeMessage(loadingId);
-        addMessage("Hubo un error de conexión 🧉. Presiona F12 y revisa la pestaña 'Consola' para ver el motivo exacto.", 'bot');
+        addMessage("Hubo un error de conexión 🧉.", 'bot');
     } finally {
         input.disabled = false;
         if(btn) btn.disabled = false;
@@ -826,17 +1135,15 @@ function addMessage(text, sender, isLoading = false) {
     const div = document.createElement('div');
     div.className = sender === 'user' ? 'user-msg' : 'bot-msg';
     
-    if(sender === 'bot' && !isLoading) {
-        div.innerHTML = text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-    } else {
-        div.innerText = text;
-    }
-
+    let format = text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+    
     if (isLoading) {
         div.id = 'loading-msg';
-        div.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Pensando...';
+        div.innerHTML = '<ion-icon name="sync" class="spin-anim"></ion-icon> Pensando...';
+    } else {
+        div.innerHTML = (sender === 'bot') ? format : text;
     }
-
+    
     chatBody.appendChild(div);
     chatBody.scrollTop = chatBody.scrollHeight;
     return div.id;
@@ -846,41 +1153,3 @@ function removeMessage(id) {
     const el = document.getElementById(id);
     if (el) el.remove();
 }
-
-// --- LÓGICA PORTAL TECHFIX ---
-const dbReparaciones = {
-    "S10-PANTALLA": { equipo: "Samsung Galaxy S10", problema: "Pantalla rota - Cambio de módulo", estado: "En banco de pruebas", icono: "fa-mobile-alt", color: "orange" },
-    "A71-CAMARA": { equipo: "Samsung Galaxy A71", problema: "Lentes manchados - Limpieza", estado: "Esperando repuesto", icono: "fa-camera", color: "red" },
-    "HP-BATERIA": { equipo: "Notebook HP 14-am071la", problema: "Batería no funciona - Reemplazo", estado: "¡Listo para retirar!", icono: "fa-laptop", color: "green" }
-};
-
-window.consultarReparacion = () => {
-    const codigo = document.getElementById('codigo-reparacion').value.trim().toUpperCase();
-    const resultDiv = document.getElementById('resultado-reparacion');
-    
-    if(!codigo) return;
-    
-    resultDiv.innerHTML = '<div class="skeleton" style="height:60px; border-radius:12px;"></div>';
-    
-    setTimeout(() => {
-        const rep = dbReparaciones[codigo];
-        if(rep) {
-            resultDiv.innerHTML = `
-                <div class="tracker-card">
-                    <div class="tracker-icon ${rep.color}"><i class="fas ${rep.icono}"></i></div>
-                    <div class="tracker-info">
-                        <strong>${rep.equipo}</strong>
-                        <small>${rep.problema}</small>
-                        <span class="status-badge ${rep.color}">${rep.estado}</span>
-                    </div>
-                </div>
-            `;
-        } else {
-            resultDiv.innerHTML = `<p class="error-text">Código no encontrado. Verifica tu orden.</p>`;
-        }
-    }, 800);
-};
-
-window.solicitarSOS = () => {
-    window.open(`https://wa.me/5493794000000?text=Hola%20TechFix,%20estoy%20usando%20Ruta%20Correntina%20y%20tengo%20una%20urgencia%20t%C3%A9cnica.`, '_blank');
-};
