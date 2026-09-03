@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ruta-correntina-v11';
+const CACHE_NAME = 'ruta-correntina-v12';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -6,10 +6,7 @@ const ASSETS_TO_CACHE = [
     './script.js',
     './firebase.js',
     './lugares.json',
-    './manifest.json',
-    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-    'https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.css',
-    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+    './manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
@@ -32,7 +29,6 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-    // Intercepta peticiones y sirve desde caché si no hay conexión
     if (event.request.method === 'GET') {
         event.respondWith(
             caches.match(event.request).then((response) => {
