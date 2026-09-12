@@ -3,289 +3,242 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Ruta Correntina Ultimate</title>
-    <meta name="theme-color" content="#007AFF">
-    <link rel="manifest" href="manifest.json">
+    <title>Ruta Correntina</title>
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+    <link rel="manifest" href="./manifest.json">
     
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Leaflet Routing Machine CSS & JS (Navegación Giro a Giro) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+
+    <!-- Main CSS Externo -->
+    <link rel="stylesheet" href="./src/styles/main.css?v=18">
+    
+    <!-- Ionicons -->
     <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
     <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
-    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-    <div id="splash-screen" role="dialog" aria-label="Cargando aplicación">
+    <!-- Splash Screen -->
+    <div id="splash-screen">
         <div class="splash-content">
-            <div class="logo-pulse"><ion-icon name="map" aria-hidden="true"></ion-icon></div>
             <h1>Ruta Correntina</h1>
-            <p>GUÍA DEFINITIVA</p>
+            <div class="spinner"></div>
         </div>
     </div>
 
-    <div id="offline-banner" role="status"><ion-icon name="wifi" aria-hidden="true"></ion-icon> Sin conexión - Funcionando Offline</div>
+    <!-- Offline Banner -->
+    <div id="offline-banner" class="offline-banner">Sin conexión a Internet - Modo Offline activo</div>
 
-    <div id="view-map" class="app-view active" role="region" aria-label="Mapa interactivo">
-        <div id="map-loader" class="loader-overlay">
-            <div class="logo-pulse"><ion-icon name="map" aria-hidden="true"></ion-icon></div>
-            <p>Cargando cartografía...</p>
+    <!-- Auth Full Screen -->
+    <div id="auth-container">
+        <div class="auth-card">
+            <h2 id="auth-header-text">Accede a tu pasaporte digital</h2>
+            <p>Guarda tus visitas, gana puntos y desbloquea beneficios.</p>
+            <form id="auth-form">
+                <input type="email" id="email-input" placeholder="Correo electrónico" required>
+                <input type="password" id="pass-input" placeholder="Contraseña" required>
+                <button type="submit" class="ios-btn-primary" id="btn-submit">Entrar</button>
+            </form>
+            <span class="auth-toggle" id="toggle-auth-mode">Crear cuenta</span>
         </div>
-        
-        <div id="map"></div>
-        
-        <div class="top-bar-floating">
-            <div class="search-box-glass">
-                <ion-icon name="search" class="search-icon" aria-hidden="true"></ion-icon>
-                <input type="text" id="buscador-input" placeholder="¿A dónde vamos hoy?" aria-label="Buscar lugares, colectivos o estacionamientos">
-                <div id="weather-widget" class="weather-in-bar" aria-label="Clima actual">
-                    <ion-icon name="partly-sunny" aria-hidden="true"></ion-icon> <span id="temp-val">--°</span>
+    </div>
+
+    <div class="app-container">
+        <!-- VISTA: MAPA -->
+        <div id="view-map" class="app-view active">
+            <div id="map" style="height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1;"></div>
+            
+            <div class="map-top-bar">
+                <div class="search-box-container">
+                    <ion-icon name="search-outline"></ion-icon>
+                    <input type="text" id="buscador-input" placeholder="Buscar lugares, plazas, playas...">
                 </div>
+                <div id="search-results" class="hidden"></div>
+
+                <div class="filter-pills-container" id="filters-container">
+                    <button class="filter-pill active" data-category="todos">Todos</button>
+                    <button class="filter-pill" data-category="abierto">Abierto ahora</button>
+                    <button class="filter-pill" data-category="favoritos">Favoritos</button>
+                    <button class="filter-pill" data-category="playas">Playas</button>
+                    <button class="filter-pill" data-category="cultura">Cultura</button>
+                </div>
+
+                <div class="map-suggestion-card" onclick="abrirFichaNombre?.('Costanera General San Martín')">
+                    <div class="suggestion-info">
+                        <h4>✨ Recomendado para hoy</h4>
+                        <p>Costanera General San Martín • Hermosa vista al río</p>
+                    </div>
+                    <div class="suggestion-action-icon">
+                        <ion-icon name="chevron-forward-outline"></ion-icon>
+                    </div>
+                </div>
+            </div>
+
+            <div id="layer-panel" class="layer-panel hidden">
+                <h4>Capas del Mapa</h4>
+                <label><input type="checkbox" data-layer="calor" class="layer-checkbox"> Mapa de calor</label>
+                <label><input type="checkbox" data-layer="trafico" class="layer-checkbox"> Tráfico en vivo</label>
+            </div>
+
+            <div class="map-floating-actions">
+                <button class="btn-float" id="btn-gps"><ion-icon name="locate-outline"></ion-icon></button>
+                <button class="btn-float" id="btn-layer-toggle"><ion-icon name="layers-outline"></ion-icon></button>
+                <button class="btn-float" id="btn-report-issue"><ion-icon name="warning-outline"></ion-icon></button>
             </div>
             
-            <div id="search-results" class="search-dropdown hidden" role="listbox"></div>
-            
-            <div class="filter-scroll" role="toolbar" aria-label="Filtros de categoría">
-                <button class="filter-pill active" data-filter="todos">Todo</button>
-                <button class="filter-pill" data-filter="favoritos">❤️ Favoritos</button>
-                <button class="filter-pill" data-filter="abierto">🕒 Abierto</button>
-                <button class="filter-pill" data-filter="parada">🚌 Colectivos</button>
-                <button class="filter-pill" data-filter="estacionamiento">🅿️ Parking</button> 
-                <button class="filter-pill" data-filter="turismo">📸 Turismo</button>
-                <button class="filter-pill" data-filter="gastronomia">🍔 Comida</button>
-                <button class="filter-pill" data-filter="playa">🏖️ Playa</button>
-            </div>
+            <button class="chat-float-btn" id="btn-chat-float"><ion-icon name="chatbubbles-outline"></ion-icon></button>
         </div>
 
-        <div class="map-controls">
-            <button id="btn-center-map" class="btn-float glass-btn" aria-label="Centrar en mi ubicación GPS"><ion-icon name="navigate" aria-hidden="true"></ion-icon></button>
-            <button id="btn-toggle-layers" class="btn-float glass-btn layer-btn" aria-label="Abrir capas del mapa"><ion-icon name="layers" aria-hidden="true"></ion-icon></button>
-            <button id="btn-report-incident" class="btn-float glass-btn alert-btn" aria-label="Reportar incidente vial" style="color: #FF3B30;"><ion-icon name="warning" aria-hidden="true"></ion-icon></button>
-        </div>
-
-        <div id="layer-panel" class="layer-panel hidden" role="dialog" aria-label="Panel de capas">
-            <div class="layer-header">
-                <span>Capas del Mapa</span>
-                <button id="btn-close-layers" aria-label="Cerrar panel de capas"><ion-icon name="close" aria-hidden="true"></ion-icon></button>
-            </div>
-            <div class="layer-options">
-                <label><input type="checkbox" class="layer-checkbox" data-layer="turismo" checked> 📸 Turismo / Museos</label>
-                <label><input type="checkbox" class="layer-checkbox" data-layer="gastronomia" checked> 🍔 Gastronomía</label>
-                <label><input type="checkbox" class="layer-checkbox" data-layer="estacionamiento" checked> 🅿️ Estacionamientos</label>
-                <label><input type="checkbox" class="layer-checkbox" data-layer="parada" checked> 🚌 Paradas de Colectivos</label>
-                <label><input type="checkbox" class="layer-checkbox" data-layer="playa" checked> 🏖️ Playas y Costanera</label>
-                <label><input type="checkbox" class="layer-checkbox" data-layer="reportes" checked> ⚠️ Alertas Ciudadanas</label>
-            </div>
-        </div>
-
-        <div id="nav-ui-bottom" class="nav-island" role="region" aria-label="Instrucciones de navegación">
-            <div class="nav-content-wrapper">
-                <div class="nav-data">
-                    <div class="nav-time-big"><span id="nav-time">-- min</span></div>
-                    <div class="nav-dist-small"><ion-icon name="walk" aria-hidden="true"></ion-icon> <span id="nav-dist">-- km</span></div>
+        <!-- VISTA: EXPLORAR -->
+        <div id="view-explore" class="app-view">
+            <div class="feed-container">
+                <!-- Buscador interno -->
+                <div class="explore-search-box">
+                    <ion-icon name="search-outline"></ion-icon>
+                    <input type="text" placeholder="Explorar experiencias, lugares, eventos...">
                 </div>
-                <div class="nav-actions">
-                    <button id="btn-end-trip" class="btn-end-trip" aria-label="Finalizar navegación"><ion-icon name="close" aria-hidden="true"></ion-icon></button>
+
+                <!-- Historias / Categorías Rápidas -->
+                <div class="explore-stories">
+                    <div class="story-bubble">
+                        <div class="story-avatar"><div>🏖️</div></div>
+                        <span>Playas</span>
+                    </div>
+                    <div class="story-bubble">
+                        <div class="story-avatar"><div>🌅</div></div>
+                        <span>Atardeceres</span>
+                    </div>
+                    <div class="story-bubble">
+                        <div class="story-avatar"><div>🍲</div></div>
+                        <span>Gastronomía</span>
+                    </div>
+                    <div class="story-bubble">
+                        <div class="story-avatar"><div>🏛️</div></div>
+                        <span>Cultura</span>
+                    </div>
+                    <div class="story-bubble">
+                        <div class="story-avatar"><div>🌿</div></div>
+                        <span>Naturaleza</span>
+                    </div>
                 </div>
-            </div>
-        </div>
-    </div>
 
-    <div id="view-list" class="app-view" role="region" aria-label="Explorar lugares">
-        <div class="explore-header">
-            <div class="header-texts">
-                <small id="date-display">Cargando fecha...</small>
-                <h1 id="greeting-display">Hola, Viajero</h1>
-            </div>
-            <div class="user-mini-badge" id="badge-profile-tab" role="button" aria-label="Ir al perfil de usuario">
-                <img id="header-avatar" src="https://ui-avatars.com/api/?name=Viajero&background=007AFF&color=fff" alt="Avatar del usuario">
-            </div>
-        </div>
-        
-        <div class="magic-container">
-            <button id="btn-magic-dest" class="btn-magic-wide" aria-label="Elegir destino aleatorio sorpresa">
-                <div class="magic-icon"><ion-icon name="color-wand" aria-hidden="true"></ion-icon></div>
-                <div class="magic-text"><span>¿A dónde voy?</span><small>Sorpréndeme ahora</small></div>
-                <ion-icon name="chevron-forward" class="magic-arrow" aria-hidden="true"></ion-icon>
-            </button>
-        </div>
-        
-        <div class="section-label">
-            <h3>Cercanos a ti</h3>
-            <a id="btn-see-all" role="button">Ver todo</a>
-        </div>
-        <div class="rutas-scroll-modern">
-            <button id="btn-route-history" class="pill-cat orange-glow"><ion-icon name="business"></ion-icon> Histórico</button>
-            <button id="btn-route-coast" class="pill-cat blue-glow"><ion-icon name="water"></ion-icon> Costanera</button>
-            <button id="btn-route-food" class="pill-cat yellow-glow"><ion-icon name="restaurant"></ion-icon> Sabores</button>
-        </div>
-        
-        <div class="section-label">
-            <h3>Explorar Corrientes</h3>
-            <button id="btn-refresh-feed" class="btn-refresh-mini" aria-label="Actualizar feed"><ion-icon name="refresh"></ion-icon></button>
-        </div>
-        
-        <div id="feed-container" class="feed-grid-modern"></div>
-        <div class="spacer-bottom"></div>
-    </div>
+                <!-- Sección Eventos de la Semana -->
+                <h3 class="explore-section-title">📅 Eventos de la Semana</h3>
+                <div class="events-slider">
+                    <div class="event-mini-card">
+                        <span class="event-date">Vie 11 Sep • 19:00</span>
+                        <span class="event-title">Feria de Artesanos en la Costanera</span>
+                    </div>
+                    <div class="event-mini-card">
+                        <span class="event-date">Sáb 12 Sep • 16:00</span>
+                        <span class="event-title">Peña Folclórica Abierta en el Anfiteatro</span>
+                    </div>
+                </div>
 
-    <div id="view-profile" class="app-view" role="region" aria-label="Perfil de usuario">
-        <div id="auth-container">
-            <div class="aurora-bg"><div class="blob blob-1"></div><div class="blob blob-2"></div></div>
-            <div class="auth-card-glass">
-                <div class="logo-3d"><ion-icon name="finger-print"></ion-icon></div>
-                <h1>Identifícate</h1>
-                <p id="auth-header-text">Accede a tu pasaporte digital</p>
-                <form id="auth-form" class="auth-form">
-                    <input type="email" id="email-input" class="input-minimal" placeholder="Email" aria-label="Correo electrónico" required>
-                    <input type="password" id="pass-input" class="input-minimal" placeholder="Contraseña" aria-label="Contraseña" required>
-                    <button type="submit" id="btn-submit" class="btn-premium-action">Entrar</button>
-                </form>
-                <button id="toggle-text" class="btn-text-link">Crear cuenta</button>
-            </div>
-        </div>
-
-        <div id="user-profile-content" style="display:none;">
-            <div class="ios-profile-layout">
-                <div class="profile-hero-card">
-                    <div class="ios-profile-header">
-                        <div class="avatar-container" id="avatar-container-click" style="cursor:pointer" role="button" aria-label="Cambiar foto de perfil">
-                            <img id="user-avatar" src="" alt="Avatar" onerror="this.src='https://ui-avatars.com/api/?name=Viajero&background=007AFF&color=fff'">
-                            <div class="level-bubble" id="level-badge">Lv. 1</div>
+                <!-- Tarjeta de Publicación 1 -->
+                <div class="explore-card">
+                    <div class="explore-card-media" style="background-image: url('https://images.unsplash.com/photo-1589556264873-013c5977fb79?auto=format&fit=crop&w=800&q=80')">
+                        <div class="explore-card-badge">
+                            <ion-icon name="location-outline"></ion-icon> Costanera General San Martín
                         </div>
-                        <h2 id="user-name">Viajero</h2>
-                        <span class="role-tag" id="badge-role">Turista Local</span>
+                        <button class="explore-like-btn" onclick="this.querySelector('ion-icon').setAttribute('name', this.querySelector('ion-icon').getAttribute('name') === 'heart' ? 'heart-outline' : 'heart')">
+                            <ion-icon name="heart-outline"></ion-icon>
+                        </button>
                     </div>
-                    <input type="file" id="input-avatar" accept="image/*" style="display:none">
-                </div>
-
-                <div class="profile-stats-grid">
-                    <div class="stat-box" id="stat-visited" role="button">
-                        <div class="stat-icon blue"><ion-icon name="location"></ion-icon></div>
-                        <div class="stat-value" id="stat-visitados">0</div>
-                        <div class="stat-label">Lugares Visitados</div>
-                    </div>
-                    <div class="stat-box" id="stat-ranking" role="button">
-                        <div class="stat-icon gold"><ion-icon name="trophy"></ion-icon></div>
-                        <div class="stat-value" id="stat-badges-count">0</div>
-                        <div class="stat-label">Top Ranking</div>
+                    <div class="explore-card-content">
+                        <h3>Atardecer único frente al Río Paraná</h3>
+                        <p>Disfruta de los mejores points de mate y caminatas al aire libre con una vista inigualable hacia el puente interprovincial.</p>
+                        <div class="explore-card-footer">
+                            <span style="font-size: 12px; color: #8e8e93;">Recomendado del día</span>
+                            <button class="explore-action-btn" onclick="abrirFichaNombre?.('Costanera General San Martín')">
+                                Ver en el mapa <ion-icon name="arrow-forward-outline"></ion-icon>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <div class="premium-wallet-card" id="wallet-card" role="button" aria-label="Ver recompensas">
-                    <div class="wallet-shine"></div><div class="wallet-border-glow"></div>
-                    <div class="wallet-top"><div class="wallet-brand"><ion-icon name="star"></ion-icon> RUTA VIP</div><ion-icon name="wifi" class="contactless-icon"></ion-icon></div>
-                    <div class="wallet-balance"><span id="tech-points">0</span> <small>PTS</small></div>
-                    <div class="wallet-bottom"><div class="wallet-user" id="wallet-user-name">Viajero Frecuente</div><div class="wallet-arrow">Canjear <ion-icon name="arrow-forward"></ion-icon></div></div>
-                </div>
-
-                <div class="ios-list-group">
-                    <div class="ios-list-item progress-item">
-                        <div class="progress-header"><span class="progress-title"><ion-icon name="flash"></ion-icon> Progreso de Nivel</span><span id="current-xp" class="progress-text">0 / 500 XP</span></div>
-                        <div class="ios-progress-track"><div id="xp-bar-fill" class="ios-progress-fill"></div></div>
+                <!-- Tarjeta de Publicación 2 -->
+                <div class="explore-card">
+                    <div class="explore-card-media" style="background-image: url('https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80')">
+                        <div class="explore-card-badge">
+                            <ion-icon name="location-outline"></ion-icon> Punta Arazatá
+                        </div>
+                        <button class="explore-like-btn" onclick="this.querySelector('ion-icon').setAttribute('name', this.querySelector('ion-icon').getAttribute('name') === 'heart' ? 'heart-outline' : 'heart')">
+                            <ion-icon name="heart-outline"></ion-icon>
+                        </button>
+                    </div>
+                    <div class="explore-card-content">
+                        <h3>Playa Arazatá: Arena y relax</h3>
+                        <p>El punto de encuentro perfecto sobre la costanera para disfrutar del río, paradores y actividades recreativas al atardecer.</p>
+                        <div class="explore-card-footer">
+                            <span style="font-size: 12px; color: #8e8e93;">Imperdible</span>
+                            <button class="explore-action-btn" onclick="abrirFichaNombre?.('Playa Arazatá')">
+                                Ver en el mapa <ion-icon name="arrow-forward-outline"></ion-icon>
+                            </button>
+                        </div>
                     </div>
                 </div>
-
-                <div class="album-container" id="gallery-item">
-                    <h3>📸 Álbum de Viajes</h3>
-                    <div class="album-scroll" id="passport-grid-mini"></div>
-                </div>
-
-                <div class="ios-list-header" style="margin-top:25px;"><span>Configuración</span></div>
-                <div class="ios-list-group">
-                    <div class="ios-list-item" id="btn-edit-profile" role="button">
-                        <div class="list-left"><div class="ios-icon gray"><ion-icon name="create"></ion-icon></div> Editar Perfil</div>
-                        <div class="list-right"><ion-icon name="chevron-forward" class="arrow"></ion-icon></div>
-                    </div>
-                    <div class="ios-list-item" id="dark-mode-toggle" role="button" aria-label="Alternar modo oscuro">
-                        <div class="list-left"><div class="ios-icon black"><ion-icon name="moon"></ion-icon></div> Modo Oscuro</div>
-                        <div class="list-right"><div class="ios-switch" aria-hidden="true"></div></div>
-                    </div>
-                </div>
-
-                <button id="btn-logout" class="ios-btn-logout">Cerrar Sesión</button>
-                <div class="spacer-bottom"></div>
             </div>
         </div>
-    </div>
 
-    <!-- MODALES -->
-    <div id="modal-reporte" class="ios-alert-modal" role="dialog" aria-label="Reportar incidente">
-        <div class="ios-alert-box" style="width: 320px;">
-            <h3>⚠️ Reportar Incidente</h3>
-            <p>Ayuda a la comunidad avisando sobre cortes o problemas.</p>
-            <select id="tipo-reporte" class="ios-alert-input" style="text-align-last: center;" aria-label="Tipo de incidente">
-                <option value="Corte de Calle / Obra">🚧 Corte de Calle / Obra</option>
-                <option value="Calle Anegada / Agua">💧 Calle Anegada</option>
-                <option value="Semáforo Roto">🚦 Semáforo Roto</option>
-                <option value="Otro Incidente">⚠️ Otro Incidente</option>
-            </select>
-            <input type="text" id="desc-reporte" class="ios-alert-input" placeholder="Breve descripción" aria-label="Descripción del reporte">
-            <div class="ios-alert-actions">
-                <button id="btn-cancel-report" class="ios-alert-btn cancel">Cancelar</button>
-                <button id="btn-confirm-report" class="ios-alert-btn confirm">Reportar</button>
+        <!-- VISTA: PREMIOS -->
+        <div id="view-canje" class="app-view">
+            <div class="premios-container">
+                <button id="btn-open-ranking" class="ios-btn-primary" style="margin: 20px;">Ver Ranking Global</button>
             </div>
         </div>
-    </div>
 
-    <div id="modal-edit-profile" class="ios-alert-modal" role="dialog" aria-label="Editar perfil">
-        <div class="ios-alert-box">
-            <h3>Editar Nombre</h3><p>Ingresa tu nuevo nombre de usuario.</p>
-            <input type="text" id="input-nuevo-nombre" class="ios-alert-input" placeholder="Tu nombre" aria-label="Nuevo nombre de usuario">
-            <div class="ios-alert-actions">
-                <button id="btn-cancel-edit-profile" class="ios-alert-btn cancel">Cancelar</button>
-                <button id="btn-confirm-edit-profile" class="ios-alert-btn confirm">Guardar</button>
-            </div>
+        <!-- VISTA: PERFIL -->
+        <div id="view-profile" class="app-view">
+            <div id="user-profile-content"></div>
         </div>
     </div>
 
-    <div id="modal-ranking" class="full-modal" role="dialog" aria-label="Ranking de usuarios">
-        <div class="modal-header">
-            <h2>🏆 Top Viajeros</h2>
-            <button id="btn-close-ranking" class="btn-close-modal" aria-label="Cerrar ranking"><ion-icon name="close"></ion-icon></button>
-        </div>
-        <div class="modal-body" id="ranking-list"></div>
-    </div>
-
-    <div id="modal-canje" class="full-modal" role="dialog" aria-label="Tienda Recompensas">
-        <div class="modal-header">
-            <h2>🎟️ Tienda de Recompensas</h2>
-            <button id="btn-close-canje" class="btn-close-modal" aria-label="Cerrar tienda"><ion-icon name="close"></ion-icon></button>
-        </div>
-        <div class="modal-body">
-            <div class="points-display-large"><span id="canje-points">0</span> PTS</div>
-            <div id="canje-list" class="coupons-grid"></div>
-        </div>
-    </div>
-
-    <div id="chat-widget" class="chat-hidden" role="region" aria-label="Asistente virtual RutaBot">
-        <div class="chat-header">
-            <div class="chat-title"><ion-icon name="cube"></ion-icon> Guía RutaBot</div>
-            <button id="btn-close-chat" class="close-chat" aria-label="Minimizar chat"><ion-icon name="chevron-down"></ion-icon></button>
-        </div>
-        <div id="chat-messages" class="chat-body" role="log">
-            <div class="bot-msg">¡Hola, viajero! Soy tu guía virtual en Corrientes. <br>Pregúntame por lugares, comida, colectivos o estacionamientos.</div>
-        </div>
-        <div class="chat-input-area">
-            <input type="text" id="user-msg" placeholder="Pregúntale a RutaBot..." aria-label="Escribe un mensaje al bot">
-            <button id="btn-send-ai" aria-label="Enviar mensaje"><ion-icon name="send"></ion-icon></button>
-        </div>
-    </div>
-
-    <button id="btn-open-chat" class="btn-chat-float" aria-label="Abrir chat de asistencia"><ion-icon name="chatbubble-ellipses"></ion-icon></button>
-
-    <nav class="bottom-tab-bar" role="navigation" aria-label="Navegación principal">
-        <button class="tab-btn active" data-tab="map" aria-label="Pestaña Mapa"><ion-icon name="map"></ion-icon><span>Mapa</span></button>
-        <button class="tab-btn" data-tab="list" aria-label="Pestaña Explorar"><ion-icon name="compass"></ion-icon><span>Explorar</span></button>
-        <button class="tab-btn" data-tab="profile" aria-label="Pestaña Perfil"><ion-icon name="person"></ion-icon><span>Perfil</span></button>
+    <!-- Barra Inferior -->
+    <nav class="bottom-nav" id="main-bottom-nav">
+        <button class="tab-btn active" data-tab="map">
+            <ion-icon name="map-outline"></ion-icon>
+            <span>Mapa</span>
+        </button>
+        <button class="tab-btn" data-tab="explore">
+            <ion-icon name="compass-outline"></ion-icon>
+            <span>Explorar</span>
+        </button>
+        <button class="tab-btn" data-tab="canje">
+            <ion-icon name="gift-outline"></ion-icon>
+            <span>Premios</span>
+        </button>
+        <button class="tab-btn" data-tab="profile">
+            <ion-icon name="person-outline"></ion-icon>
+            <span>Perfil</span>
+        </button>
     </nav>
 
-    <div id="ficha-lugar" role="region" aria-label="Detalles del lugar"></div>
-    <div id="toast-container" aria-live="polite"></div>
+    <!-- Ficha de Lugar -->
+    <div id="bottom-sheet" class="bottom-sheet">
+        <div id="ficha-content"></div>
+    </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
-    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
-    <script type="module" src="script.js"></script>
+    <!-- Chat IA Widget -->
+    <div class="chat-widget chat-hidden" id="chat-widget">
+        <div class="chat-header" id="chat-header-close">
+            <div class="chat-title-info">
+                <ion-icon name="sparkles"></ion-icon> Asistente Turístico IA
+            </div>
+            <ion-icon name="chevron-down-outline"></ion-icon>
+        </div>
+        <div class="chat-body" id="chat-body"></div>
+        <div class="chat-footer">
+            <input type="text" id="user-msg" placeholder="Pregunta sobre la ciudad...">
+            <button id="btn-send-msg"><ion-icon name="send"></ion-icon></button>
+        </div>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
 </body>
 </html>
