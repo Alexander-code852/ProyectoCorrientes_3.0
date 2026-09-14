@@ -326,7 +326,7 @@
    BOTONES (estilo iOS, reutilizables en formularios y modales)
 ----------------------------------- */
 .ios-btn-primary {
-    background: #0a84ff;
+    background: linear-gradient(180deg, #0a94ff, #0a7aef);
     color: white;
     border: none;
     padding: 14px;
@@ -334,13 +334,21 @@
     font-size: 16px;
     font-weight: 600;
     cursor: pointer;
-    transition: transform 0.1s, background 0.2s;
+    /* Sombra inferior + de color, para que se lea como un botón físico
+       clickeable en vez de un rectángulo plano. */
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.12), 0 4px 14px rgba(10, 132, 255, 0.35);
+    transition: transform 0.1s ease, background 0.2s ease, box-shadow 0.2s ease;
     width: 100%;
 }
 
+.ios-btn-primary:hover {
+    background: linear-gradient(180deg, #2ba2ff, #0a84ff);
+}
+
 .ios-btn-primary:active {
-    transform: scale(0.96);
+    transform: scale(0.97) translateY(1px);
     background: #0070e0;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12), 0 2px 8px rgba(10, 132, 255, 0.3);
 }
 
 .ios-btn-secondary {
@@ -352,7 +360,11 @@
     font-size: 15px;
     font-weight: 600;
     cursor: pointer;
-    transition: background 0.2s ease;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.ios-btn-secondary:hover {
+    background: rgba(142, 142, 147, 0.2);
 }
 
 .ios-btn-secondary:active {
@@ -657,8 +669,8 @@
     width: 100vw;
     height: 100vh;
     background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     display: none;
     align-items: center;
     justify-content: center;
@@ -684,9 +696,13 @@
 
 .modal-card h3 {
     margin: 0;
-    font-size: 18px;
+    font-size: 19px;
     color: #1c1c1e;
     font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    line-height: 1.3;
 }
 
 .modal-card p {
@@ -696,23 +712,52 @@
     line-height: 1.4;
 }
 
-.modal-card input, 
-.modal-card select, 
+.modal-card input,
+.modal-card select,
 .modal-card textarea {
     width: 100%;
-    padding: 12px;
+    padding: 14px;
     border-radius: 12px;
-    border: 0.5px solid rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(0, 0, 0, 0.15);
     background: #f9f9fb;
     font-size: 14px;
     outline: none;
     box-sizing: border-box;
     color: #1c1c1e;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.modal-card select {
+    /* Flecha custom (en vez del control nativo del SO, que no siempre
+       contrasta bien sobre fondo oscuro): mismo SVG en ambos temas, el
+       color del trazo se ajusta en el bloque de dark-mode más abajo. */
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 16px;
+    padding-right: 38px;
 }
 
 .modal-card textarea {
     resize: none;
     height: 80px;
+}
+
+.modal-card input::placeholder,
+.modal-card textarea::placeholder {
+    color: #a1a1a6;
+}
+
+/* Foco: faltaba por completo (outline:none sin reemplazo de arriba dejaba
+   los campos sin ningún feedback visual al tabular/tocar) -mismo azul que
+   .ios-btn-primary, funciona igual en modo claro y oscuro. */
+.modal-card input:focus,
+.modal-card select:focus,
+.modal-card textarea:focus {
+    border-color: #0a84ff;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
 }
 
 .modal-actions {
@@ -788,19 +833,54 @@ body.dark-mode .modal-overlay {
 }
 
 body.dark-mode .modal-card {
-    background: rgba(28, 28, 30, 0.95) !important;
+    background: #1e1e1e !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
 }
 
 body.dark-mode .modal-card h3 {
     color: var(--text-main, #fff) !important;
 }
 
+/* Fondo un poco más claro que la tarjeta (#1e1e1e) para que el campo se
+   distinga de verdad del contenedor -antes usaban casi el mismo gris
+   (#2c2c2e) con un borde apenas visible, por eso se veían "planos". */
 body.dark-mode .modal-card input,
 body.dark-mode .modal-card select,
 body.dark-mode .modal-card textarea {
-    background: var(--bg-muted, #2c2c2e) !important;
-    border-color: rgba(255, 255, 255, 0.12) !important;
+    /* background-color, no el shorthand "background": el shorthand resetea
+       a sus valores iniciales cualquier sub-propiedad no mencionada acá
+       (repeat/position/size), lo que rompía el ícono de flecha custom del
+       select de abajo -volvía a "repeat" un ícono de 24x24 sin achicar,
+       se veía como 5 flechas en fila-. */
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
     color: var(--text-main, #fff) !important;
+}
+
+body.dark-mode .modal-card input::placeholder,
+body.dark-mode .modal-card textarea::placeholder {
+    color: rgba(255, 255, 255, 0.45) !important;
+}
+
+body.dark-mode .modal-card select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+}
+
+/* El foco base (definido arriba, fuera de dark-mode) ya funciona igual
+   acá -mismo azul, buen contraste sobre #1e1e1e-, no hace falta repetirlo. */
+
+body.dark-mode .ios-btn-secondary {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: #f2f2f7 !important;
+}
+
+body.dark-mode .ios-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.16) !important;
+}
+
+body.dark-mode .ios-btn-secondary:active {
+    background: rgba(255, 255, 255, 0.2) !important;
 }
 
 body.dark-mode .floating-card {
