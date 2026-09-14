@@ -3,9 +3,18 @@
    ========================================== */
 import { state } from '../core/store.js';
 import { initAddPlaceOnClick } from './addPlaceManager.js';
+import { showToast } from '../utils/helpers.js';
 
 let userMarker = null;
 let watchId = null;
+
+// Las dos TileLayer que alterna el checkbox "Vista satelital" del panel de
+// capas (ver alternarVistaSatelital más abajo e index.html #layer-panel).
+// Referencias a nivel de módulo porque se crean una sola vez y se agregan/
+// sacan del mapa según corresponda -crear una L.tileLayer nueva en cada
+// toggle pegaría de nuevo contra el servidor de tiles innecesariamente.
+let capaBase = null;
+let capaSatelital = null;
 
 export function initMap() {
     const mapElement = document.getElementById("map");
@@ -15,7 +24,7 @@ export function initMap() {
     state.map = L.map('map', { zoomControl: false }).setView([-27.4692, -58.8306], 14);
 
     // Capa de mapa base (OpenStreetMap)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    capaBase = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '© OpenStreetMap contributors'
     }).addTo(state.map);
@@ -46,17 +55,33 @@ export function initMap() {
 }
 
 export function iniciarGPS() {
-    if (!navigator.geolocation || !state.map) return;
+    if (!navigator.geolocation) {
+        showToast("⚠️ Tu navegador no soporta geolocalización");
+        return;
+    }
+    if (!state.map) return;
 
     // Obtener la posición inicial una vez
     navigator.geolocation.getCurrentPosition((position) => {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
 
-        state.map.setView([lat, lng], 16);
+        // flyTo en vez de setView: anima el paneo+zoom en vez de saltar de
+        // golpe -es la única llamada de esta función pensada para un click
+        // deliberado del botón; watchPosition (abajo) solo reposiciona el
+        // marcador, no vuelve a mover la cámara en cada actualización.
+        state.map.flyTo([lat, lng], 16, { duration: 1.2 });
         actualizarMarcadorUsuario(lat, lng);
     }, (error) => {
         console.error("Error al obtener la ubicación GPS inicial:", error);
+        // PERMISSION_DENIED (código 1) es el caso que pide el usuario
+        // explícitamente; los otros dos (POSITION_UNAVAILABLE, TIMEOUT)
+        // también son accionables desde la UI, así que se avisan igual.
+        if (error.code === error.PERMISSION_DENIED) {
+            showToast("⚠️ Activá el permiso de ubicación para usar esta función");
+        } else {
+            showToast("⚠️ No pudimos obtener tu ubicación. Intentá de nuevo");
+        }
     }, { enableHighAccuracy: true });
 
     // Rastrear posición en tiempo real si el navegador lo soporta
@@ -92,5 +117,27 @@ function actualizarMarcadorUsuario(lat, lng) {
         });
 
         userMarker = L.marker([lat, lng], { icon: userIcon, isUserLocation: true, zIndexOffset: 1000 }).addTo(state.map);
+    }
+}
+
+// Conectado al checkbox "🛰️ Vista satelital" del panel de capas (ver
+// src/ui/events.js, listener de .layer-checkbox). Tiles públicos de Esri
+// World Imagery -no piden API key para este volumen de uso-, mismo patrón
+// que la capa base de OpenStreetMap: se crea una sola vez y se reutiliza.
+export function alternarVistaSatelital(activar) {
+    if (!state.map || !capaBase) return;
+
+    if (activar) {
+        if (!capaSatelital) {
+            capaSatelital = L.tileLayer(
+                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                { maxZoom: 19, attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics' }
+            );
+        }
+        state.map.removeLayer(capaBase);
+        capaSatelital.addTo(state.map);
+    } else {
+        if (capaSatelital) state.map.removeLayer(capaSatelital);
+        capaBase.addTo(state.map);
     }
 }

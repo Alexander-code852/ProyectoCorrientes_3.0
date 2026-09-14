@@ -5,6 +5,7 @@ import { filtrarLugaresPorCategoria, irALugarPorNombre } from '../services/fireb
 import { auth } from '../config/firebase.js';
 import { signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { toggleEstacionamientos } from '../map/markers/estacionamientoMarkers.js';
+import { alternarVistaSatelital } from '../map/mapManager.js';
 import { state } from '../core/store.js';
 
 let deferredPrompt = null;
@@ -94,12 +95,16 @@ export function initEventListeners() {
     });
 
     // Checkboxes del panel de capas: "Mapa de calor"/"Tráfico en vivo" siguen
-    // sin ningún listener (ver comentario en index.html) — acá solo se
-    // conectan los dos de estacionamiento, que sí pintan pines reales.
+    // sin ningún listener (ver comentario en index.html) — acá se conectan
+    // "Vista satelital" (alterna la TileLayer base, ver mapManager.js) y
+    // los dos de estacionamiento, que pintan pines reales.
     document.addEventListener('change', (e) => {
         const checkbox = e.target.closest('.layer-checkbox');
         if (!checkbox) return;
 
+        if (checkbox.dataset.layer === 'satelital') {
+            alternarVistaSatelital(checkbox.checked);
+        }
         if (checkbox.dataset.layer === 'estacionamiento-moto') {
             state.activeLayers.estacionamiento = checkbox.checked || document.querySelector('[data-layer="estacionamiento-auto"]')?.checked;
             toggleEstacionamientos('moto', checkbox.checked);

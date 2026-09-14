@@ -275,8 +275,12 @@
 }
 
 /* --- BOTONERA FLOTANTE (GPS / capas / reportar) ---
-   Columna de botones circulares sobre el borde derecho del mapa, elevada
-   (bottom: 140px) para no chocar con la barra inferior de navegación. */
+   Píldora vertical única en glassmorphism (fondo oscuro + blur), sobre el
+   borde derecho del mapa, elevada (bottom: 140px) para no chocar con la
+   barra inferior de navegación. Queda oscura en los dos temas de la app
+   (claro/dark-mode) a propósito -es un control flotante sobre el mapa, no
+   una tarjeta de contenido, y necesita contraste parejo sobre tiles de
+   cualquier color-. */
 .map-floating-actions {
     position: absolute !important;
     right: 16px !important;
@@ -284,23 +288,71 @@
     z-index: 1000 !important;
     display: flex !important;
     flex-direction: column !important;
-    gap: 10px !important;
+    align-items: center !important;
+    gap: 4px !important;
+    padding: 6px !important;
+    border-radius: 999px !important;
+    background: rgba(28, 28, 30, 0.55) !important;
+    backdrop-filter: blur(10px) saturate(160%) !important;
+    -webkit-backdrop-filter: blur(10px) saturate(160%) !important;
+    border: 0.5px solid rgba(255, 255, 255, 0.14) !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25) !important;
 }
 
 .btn-float {
-    width: 44px !important;
-    height: 44px !important;
+    position: relative !important;
+    width: 42px !important;
+    height: 42px !important;
     border-radius: 50% !important;
-    background: rgba(255, 255, 255, 0.95) !important;
-    backdrop-filter: blur(20px) !important;
-    border: 0.5px solid rgba(0, 0, 0, 0.06) !important;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08) !important;
+    background: transparent !important;
+    border: none !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    font-size: 20px !important;
-    color: #007aff !important;
+    color: rgba(255, 255, 255, 0.85) !important;
     cursor: pointer !important;
+    transition: background 0.2s ease, color 0.2s ease !important;
+}
+
+.btn-float svg {
+    width: 20px !important;
+    height: 20px !important;
+    pointer-events: none !important;
+}
+
+.btn-float:hover,
+.btn-float:focus-visible {
+    background: rgba(255, 255, 255, 0.14) !important;
+    color: #0a84ff !important;
+}
+
+/* Tooltip custom (data-tooltip): aparece a la izquierda del botón en hover/
+   focus. aria-label en el HTML repite el mismo texto para accesibilidad
+   real -esto de acá es solo visual, un lector de pantalla no lo ve. */
+.btn-float::after {
+    content: attr(data-tooltip) !important;
+    position: absolute !important;
+    right: calc(100% + 10px) !important;
+    top: 50% !important;
+    transform: translateY(-50%) translateX(4px) !important;
+    background: rgba(28, 28, 30, 0.92) !important;
+    color: #fff !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+    padding: 6px 10px !important;
+    border-radius: 8px !important;
+    pointer-events: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transition: opacity 0.15s ease, transform 0.15s ease !important;
+}
+
+.btn-float:hover::after,
+.btn-float:focus-visible::after {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translateY(-50%) translateX(0) !important;
 }
 
 /* --- BOTÓN FLOTANTE DEL CHAT (FAB) ---

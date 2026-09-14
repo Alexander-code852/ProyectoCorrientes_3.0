@@ -197,10 +197,14 @@
             <!-- Panel de capas del mapa, oculto hasta tocar el botón de capas.
                  Nota: "Mapa de calor" y "Tráfico en vivo" son checkboxes sin
                  ningún listener conectado todavía (ver CLAUDE.md) — no los
-                 toqué. Los dos de estacionamiento sí están cableados de
-                 verdad, ver src/ui/events.js + src/map/markers/estacionamientoMarkers.js. -->
+                 toqué. Los de estacionamiento y "Vista satelital" sí están
+                 cableados de verdad, ver src/ui/events.js +
+                 src/map/markers/estacionamientoMarkers.js /
+                 src/map/mapManager.js (alternarVistaSatelital). -->
             <div id="layer-panel" class="layer-panel hidden">
                 <h4>Capas del Mapa</h4>
+                <label><input type="checkbox" data-layer="satelital" class="layer-checkbox"> 🛰️ Vista satelital</label>
+                <hr class="layer-panel-divider">
                 <label><input type="checkbox" data-layer="calor" class="layer-checkbox"> Mapa de calor</label>
                 <label><input type="checkbox" data-layer="trafico" class="layer-checkbox"> Tráfico en vivo</label>
                 <hr class="layer-panel-divider">
@@ -208,11 +212,21 @@
                 <label><input type="checkbox" data-layer="estacionamiento-auto" class="layer-checkbox"> 🅿️ Estacionamiento para autos</label>
             </div>
 
-            <!-- Botonera flotante lateral: centrar GPS / alternar capas / reportar incidente -->
+            <!-- Botonera flotante lateral: centrar GPS / alternar capas / reportar
+                 incidente, agrupados en una única píldora glassmorphism (ver
+                 .map-floating-actions en _map.css). data-tooltip + CSS (::after)
+                 arma el tooltip custom; aria-label repite el mismo texto para
+                 lectores de pantalla, que no leen contenido puramente CSS. -->
             <div class="map-floating-actions">
-                <button class="btn-float" id="btn-gps"><ion-icon name="locate-outline"></ion-icon></button>
-                <button class="btn-float" id="btn-layer-toggle"><ion-icon name="layers-outline"></ion-icon></button>
-                <button class="btn-float" id="btn-report-issue"><ion-icon name="warning-outline"></ion-icon></button>
+                <button class="btn-float" id="btn-gps" data-tooltip="Mi Ubicación" aria-label="Mi Ubicación">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="2" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="22"></line><line x1="2" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="22" y2="12"></line></svg>
+                </button>
+                <button class="btn-float" id="btn-layer-toggle" data-tooltip="Cambiar Mapa" aria-label="Cambiar Mapa">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                </button>
+                <button class="btn-float" id="btn-report-issue" data-tooltip="Reportar/Alertas" aria-label="Reportar/Alertas">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                </button>
             </div>
 
             <!-- FAB (botón flotante) que abre el widget de Chat IA definido más abajo -->
