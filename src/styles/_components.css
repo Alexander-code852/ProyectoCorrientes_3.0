@@ -1,0 +1,809 @@
+/* ==========================================
+   COMPONENTES GLOBALES - src/styles/_components.css
+   Piezas de UI compartidas por varias vistas (no pertenecen a una sola
+   pestaña): pantalla de autenticación, botones, barra inferior de
+   navegación, toasts, bottom-sheet de ficha de lugar, widget de chat IA
+   y modales. Todas usan ancho fluido (%/max-width) para adaptarse a
+   cualquier tamaño de pantalla sin reglas de media query propias, salvo
+   donde _responsive.css las reubica en pantallas grandes.
+   ========================================== */
+
+/* -----------------------------------
+   OVERLAY DE TRANSICIÓN DE TEMA
+   Círculo TRANSLÚCIDO que se expande desde el punto donde se tocó el switch
+   de modo oscuro (ver transicionarTema en src/ui/events.js). Es un degradé,
+   no una tapa opaca: el contenido de abajo se sigue viendo a través, y sus
+   propios colores (body/.app-view/etc., ver transition en _base.css) ya
+   están cambiando de verdad debajo mientras el círculo barre la pantalla.
+----------------------------------- */
+#theme-transition-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 999999;
+    pointer-events: none;
+    opacity: 0.45;
+    clip-path: circle(0px at 50% 50%);
+    will-change: clip-path;
+}
+
+/* -----------------------------------
+   SWITCH ESTILO iOS (usado en "Modo Oscuro" del perfil, ver templates.js;
+   reutilizable para cualquier otra preferencia on/off futura). El "riel"
+   es un flex container: centra la perilla verticalmente por diseño (no con
+   un cálculo de "top" a ojo) y el padding de 2px define el margen a los
+   lados, para que quede perfectamente centrada por dentro en todos los casos.
+----------------------------------- */
+.ios-switch {
+    display: flex;
+    align-items: center;
+    width: 51px;
+    height: 31px;
+    padding: 2px;
+    margin-right: 6px; /* separa el switch del borde derecho de la fila para que no se vea pegado/cortado contra la esquina redondeada de .menu-group */
+    border-radius: 999px;
+    background: rgba(120, 120, 128, 0.32);
+    box-sizing: border-box;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: background-color 0.25s ease;
+}
+
+.ios-switch.on {
+    background: var(--success, #34c759);
+}
+
+.ios-switch-knob {
+    width: 27px;
+    height: 27px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15), 0 1px 2px rgba(0, 0, 0, 0.08);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ios-switch.on .ios-switch-knob {
+    transform: translateX(20px);
+}
+
+/* -----------------------------------
+   PANTALLA DE AUTENTICACIÓN (Auth) — glassmorphism oscuro
+   Overlay a pantalla completa sobre el mapa, con 3 estados dentro de
+   .auth-card (login/registro/verificación, ver index.html): cada
+   .auth-view se muestra agregándole la clase .active (src/ui/authUI.js).
+   El overlay entero se oculta agregando .hidden a #auth-container.
+----------------------------------- */
+#auth-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    /* Semitransparente y no negro puro: deja intuir el mapa detrás en vez
+       de taparlo con una cortina opaca. */
+    background: rgba(10, 14, 20, 0.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 99999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    box-sizing: border-box;
+    transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+#auth-container.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.auth-card {
+    position: relative;
+    /* Vidrio esmerilado oscuro: translúcido de verdad (no un panel casi
+       opaco) + blur fuerte, para que el mapa/gradiente de fondo se note
+       a través en vez de quedar tapado. */
+    background: rgba(20, 22, 30, 0.55);
+    backdrop-filter: blur(28px) saturate(160%);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 34px 26px 28px 26px;
+    border-radius: 28px;
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45);
+    color: white;
+}
+
+/* Ícono/logo minimalista arriba del título, compartido por los 3 estados */
+.auth-logo {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 18px auto;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    color: #fff;
+    box-shadow: 0 8px 24px rgba(10, 132, 255, 0.4);
+}
+
+/* Cada estado (login/registro/verificación) es uno de estos bloques;
+   sólo el que tiene .active se muestra. */
+.auth-view {
+    display: none;
+}
+
+.auth-view.active {
+    display: block;
+    animation: authViewIn 0.35s ease both;
+}
+
+@keyframes authViewIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .auth-view.active {
+        animation: none;
+    }
+}
+
+.auth-card h2 {
+    margin: 0 0 8px 0;
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.auth-card p {
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: #9a9aa2;
+    margin: 0 0 22px 0;
+}
+
+/* Formularios dentro de Auth */
+.auth-view form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+/* Campo con ícono a la izquierda dentro del mismo "pill" oscuro. Oscuro/
+   semitransparente en reposo; sólo resalta (borde azul + resplandor) al
+   enfocar, en vez de ser un bloque blanco brillante siempre encendido. */
+.auth-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    padding: 0 14px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.auth-field ion-icon {
+    flex-shrink: 0;
+    font-size: 18px;
+    color: #9a9aa2;
+    transition: color 0.2s ease;
+}
+
+.auth-field:focus-within {
+    border-color: #0a84ff;
+    background: rgba(10, 132, 255, 0.08);
+    box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.15);
+}
+
+.auth-field:focus-within ion-icon {
+    color: #0a84ff;
+}
+
+.auth-field input {
+    flex: 1 1 auto;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    padding: 14px 0;
+    color: white;
+    font-size: 16px;
+    outline: none;
+}
+
+.auth-field input::placeholder {
+    color: #77777f;
+}
+
+/* Chrome/Edge pintan su propio fondo celeste dentro del <input> cuando
+   autocompletan con una credencial guardada, ignorando el background:
+   transparent de arriba. El único override que aceptan es este truco del
+   box-shadow inset (tapa el fondo nativo con uno oscuro del mismo tono
+   que .auth-field) + -webkit-text-fill-color para que el texto autocompletado
+   siga siendo blanco. La transición larga evita el parpadeo al aparecer. */
+.auth-field input:-webkit-autofill,
+.auth-field input:-webkit-autofill:hover,
+.auth-field input:-webkit-autofill:focus,
+.auth-field input:-webkit-autofill:active {
+    -webkit-text-fill-color: #ffffff;
+    -webkit-box-shadow: 0 0 0 1000px #23252d inset;
+    box-shadow: 0 0 0 1000px #23252d inset;
+    caret-color: #ffffff;
+    transition: background-color 600000s ease-in-out 0s;
+}
+
+.auth-field:focus-within input:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 1000px #1b2636 inset;
+    box-shadow: 0 0 0 1000px #1b2636 inset;
+}
+
+/* CTA principal: gradiente azul + resplandor, más atractivo que un botón
+   plano de un solo color. */
+.auth-btn-primary {
+    background: linear-gradient(135deg, #0a84ff, #3d5cff);
+    color: white;
+    border: none;
+    padding: 15px;
+    border-radius: 14px;
+    font-size: 15.5px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 10px 26px rgba(10, 132, 255, 0.4);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.auth-btn-primary:hover {
+    box-shadow: 0 12px 30px rgba(10, 132, 255, 0.55);
+}
+
+.auth-btn-primary:active {
+    transform: scale(0.97);
+}
+
+.auth-toggle {
+    display: block;
+    margin-top: 14px;
+    color: #9a9aa2;
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.auth-toggle b {
+    color: #4ea1ff;
+    font-weight: 600;
+}
+
+.auth-toggle:hover b {
+    text-decoration: underline;
+}
+
+/* Link "¿Olvidaste tu contraseña?": pegado al campo de contraseña del
+   login, alineado a la derecha y sin el margen superior de un auth-toggle
+   normal (ese margen es para separar del form, acá va dentro de él). */
+.auth-forgot-pass {
+    margin-top: 0;
+    margin-bottom: 4px;
+    text-align: right;
+    font-size: 12.5px;
+}
+
+/* Botón "Reenviar correo" mientras corre el cooldown anti-spam de Firebase
+   (auth/too-many-requests): se ve apagado y no clickeable. */
+.auth-toggle-disabled {
+    opacity: 0.45;
+    pointer-events: none;
+    cursor: default;
+}
+
+/* Estado "Verificar Correo": ícono circular + acciones secundarias */
+.auth-verify-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 18px auto;
+    border-radius: 50%;
+    background: rgba(10, 132, 255, 0.12);
+    border: 1px solid rgba(10, 132, 255, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    color: #4ea1ff;
+}
+
+#btn-check-verified {
+    width: 100%;
+    margin-bottom: 4px;
+}
+
+/* -----------------------------------
+   BOTONES (estilo iOS, reutilizables en formularios y modales)
+----------------------------------- */
+.ios-btn-primary {
+    background: #0a84ff;
+    color: white;
+    border: none;
+    padding: 14px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.1s, background 0.2s;
+    width: 100%;
+}
+
+.ios-btn-primary:active {
+    transform: scale(0.96);
+    background: #0070e0;
+}
+
+.ios-btn-secondary {
+    background: rgba(142, 142, 147, 0.12);
+    color: #007aff;
+    border: none;
+    border-radius: 14px;
+    padding: 12px 20px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.ios-btn-secondary:active {
+    background: rgba(142, 142, 147, 0.25);
+}
+
+/* -----------------------------------
+   BARRA INFERIOR (Bottom Nav)
+   Navegación fija entre las 4 pestañas de la SPA. Ancho fluido (90%,
+   tope 400px) más el "safe area" del notch/gesto inferior en iOS.
+----------------------------------- */
+.bottom-nav {
+    position: fixed;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 400px;
+    /* Más transparente que antes (era 0.9, casi opaco) a propósito: que el
+       contenido que se desplaza por detrás (fotos de las tarjetas, etc.) se
+       note ligeramente a través, efecto vidrio real y no un panel sólido. */
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 12px 20px;
+    border-radius: 30px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    z-index: 9000;
+}
+
+.tab-btn {
+    position: relative;
+    background: transparent;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    color: #8e8e93;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.tab-btn ion-icon {
+    position: relative;
+    z-index: 1;
+    font-size: 26px;
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.tab-btn.active {
+    color: #0a84ff;
+}
+
+/* Resplandor azul detrás del ícono activo, para reforzar cuál pestaña está
+   seleccionada (antes solo cambiaba de color, sin ningún acento extra). */
+.tab-btn.active::before {
+    content: "";
+    position: absolute;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(10, 132, 255, 0.35), transparent 72%);
+}
+
+.tab-btn.active ion-icon {
+    transform: translateY(-3px) scale(1.1);
+}
+
+/* Animación de "rebote" al tocar cualquier ícono de la barra inferior (ver
+   la clase .tap-bounce agregada/quitada por JS en src/main.js). Mientras una
+   animación de CSS está activa controla el "transform" por completo, así que
+   hace falta una keyframe distinta para la pestaña activa: si no, perdería
+   el translateY(-3px) durante el rebote y se vería un salto raro. Al sacar
+   la clase, el ícono vuelve solo a la regla normal de arriba. */
+@keyframes tab-bounce {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.35); }
+    60% { transform: scale(0.9); }
+    100% { transform: scale(1); }
+}
+
+@keyframes tab-bounce-active {
+    0% { transform: translateY(-3px) scale(1.1); }
+    35% { transform: translateY(-3px) scale(1.45); }
+    60% { transform: translateY(-3px) scale(0.95); }
+    100% { transform: translateY(-3px) scale(1.1); }
+}
+
+.tab-btn.tap-bounce ion-icon {
+    animation: tab-bounce 0.35s ease;
+}
+
+.tab-btn.active.tap-bounce ion-icon {
+    animation: tab-bounce-active 0.35s ease;
+}
+
+/* -----------------------------------
+   TOASTS (Notificaciones emergentes)
+   Mensajes breves flotantes sobre la barra inferior (src/utils/helpers.js
+   los crea/destruye dinámicamente dentro de .toast-container).
+----------------------------------- */
+.toast-container {
+    position: fixed;
+    bottom: 100px; /* Arriba de la barra inferior */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none; 
+}
+
+.toast-message {
+    background: rgba(28, 28, 30, 0.95); 
+    color: #ffffff;
+    padding: 12px 24px;
+    border-radius: 30px;
+    font-size: 14px;
+    font-weight: 500;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    opacity: 0;
+    transform: translateY(20px);
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* -----------------------------------
+   BOTTOM SHEET (Ficha del lugar)
+   Panel que sube desde abajo con el detalle de un lugar del mapa
+   (#ficha-content). En escritorio (>=1024px, _responsive.css) se
+   convierte en panel lateral derecho en vez de hoja inferior.
+----------------------------------- */
+.bottom-sheet {
+    position: fixed;
+    bottom: -100%;
+    left: 0;
+    width: 100%;
+    height: 80vh; /* Fallback */
+    height: 80dvh; /* Alto dinámico: 80% de la altura real visible, evita que la barra del navegador móvil la achique/agrande de golpe */
+    background: #ffffff;
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.15);
+    z-index: 9500;
+    transition: bottom 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    overflow-y: auto;
+}
+
+.bottom-sheet.active {
+    bottom: 0;
+}
+
+/* -----------------------------------
+   CHAT WIDGET (IA)
+   Ventana flotante del asistente turístico (src/services/geminiAi.js).
+   Se abre/cierra con .chat-hidden/.chat-visible desde el FAB del mapa.
+----------------------------------- */
+.chat-widget {
+    position: fixed;
+    bottom: 90px;
+    left: 15px;
+    width: calc(100% - 30px);
+    max-width: 350px;
+    height: 440px;
+    max-height: 65vh;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(15px);
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    z-index: 9800;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    overflow: hidden;
+}
+
+.chat-hidden {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(20px) scale(0.95);
+}
+
+.chat-visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+.chat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.chat-title-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main, #1c1c1e);
+}
+
+.chat-title-info ion-icon {
+    color: #007aff;
+    font-size: 18px;
+}
+
+.chat-header > ion-icon {
+    color: #8e8e93;
+    font-size: 18px;
+}
+
+.chat-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.chat-message {
+    max-width: 80%;
+    padding: 10px 14px;
+    border-radius: 16px;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.chat-message-user {
+    align-self: flex-end;
+    background: #007aff;
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+
+.chat-message-bot {
+    align-self: flex-start;
+    background: #f2f2f7;
+    color: #1c1c1e;
+    border-bottom-left-radius: 4px;
+}
+
+.chat-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    flex-shrink: 0;
+}
+
+.chat-footer input {
+    flex: 1 1 auto;
+    border: none;
+    background: #f2f2f7;
+    border-radius: 20px;
+    padding: 10px 16px;
+    font-size: 14px;
+    outline: none;
+    color: #1c1c1e;
+}
+
+.chat-footer button {
+    background: #007aff;
+    color: white;
+    border: none;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+/* -----------------------------------
+   MODALES (Para agregar lugares, reportes, etc.)
+   Overlay genérico + tarjeta centrada; ancho fluido (90%, tope 400px)
+   para no desbordar en celulares angostos.
+----------------------------------- */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.modal-overlay.active {
+    display: flex;
+}
+
+.modal-card {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 24px;
+    border-radius: 24px;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    box-sizing: border-box;
+}
+
+.modal-card h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #1c1c1e;
+    font-weight: 700;
+}
+
+.modal-card p {
+    margin: 0;
+    font-size: 13px;
+    color: #8e8e93;
+    line-height: 1.4;
+}
+
+.modal-card input, 
+.modal-card select, 
+.modal-card textarea {
+    width: 100%;
+    padding: 12px;
+    border-radius: 12px;
+    border: 0.5px solid rgba(0, 0, 0, 0.15);
+    background: #f9f9fb;
+    font-size: 14px;
+    outline: none;
+    box-sizing: border-box;
+    color: #1c1c1e;
+}
+
+.modal-card textarea {
+    resize: none;
+    height: 80px;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.modal-actions button {
+    flex: 1;
+    padding: 12px;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* -----------------------------------
+   UTILIDADES GENERALES
+   Clases sueltas reutilizables en cualquier vista.
+----------------------------------- */
+.floating-card {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 0.5px solid rgba(255, 255, 255, 0.8);
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+    padding: 16px;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* ==========================================
+   MODO OSCURO
+   Todo lo de arriba es "vidrio" claro estilo iOS a propósito (salvo la
+   pantalla de Auth, que ya es oscura siempre); acá se redefine cada
+   superficie/texto sólo para body.dark-mode.
+   ========================================== */
+body.dark-mode .bottom-nav {
+    background: rgba(28, 28, 30, 0.65) !important;
+}
+
+body.dark-mode .bottom-sheet {
+    background: var(--bg-card, #1c1c1e) !important;
+}
+
+body.dark-mode .chat-widget {
+    background: rgba(28, 28, 30, 0.95) !important;
+}
+
+body.dark-mode .chat-header {
+    border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+body.dark-mode .chat-message-bot {
+    background: var(--bg-muted, #2c2c2e) !important;
+    color: var(--text-main, #fff) !important;
+}
+
+body.dark-mode .chat-footer {
+    border-top-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+body.dark-mode .chat-footer input {
+    background: var(--bg-muted, #2c2c2e) !important;
+    color: var(--text-main, #fff) !important;
+}
+
+body.dark-mode .modal-overlay {
+    background: rgba(0, 0, 0, 0.6) !important;
+}
+
+body.dark-mode .modal-card {
+    background: rgba(28, 28, 30, 0.95) !important;
+}
+
+body.dark-mode .modal-card h3 {
+    color: var(--text-main, #fff) !important;
+}
+
+body.dark-mode .modal-card input,
+body.dark-mode .modal-card select,
+body.dark-mode .modal-card textarea {
+    background: var(--bg-muted, #2c2c2e) !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+    color: var(--text-main, #fff) !important;
+}
+
+body.dark-mode .floating-card {
+    background: rgba(28, 28, 30, 0.85) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}

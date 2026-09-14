@@ -1,0 +1,694 @@
+/* ==========================================
+   ESTILOS DE LA VISTA EXPLORAR - src/styles/_explore.css
+   Feed tipo red social: buscador interno, historias/categorías rápidas,
+   slider de "Eventos de la Semana" y tarjetas de publicación. Mobile-first
+   en columna única; en tablet/desktop pasa a grilla (ver _responsive.css).
+   ========================================== */
+
+/* Contenedor de toda la pestaña Explorar, con fondo animado en gradiente:
+   transición cálido (crema/amarillo muy claro) -> frío (menta/celeste
+   claro), en vez del gris neutro que tenía antes. */
+#view-explore {
+    background: linear-gradient(-45deg, #fff8e1, #fff3d6, #e0f7fa, #e3f2ff) !important;
+    background-size: 400% 400% !important;
+    animation: gradientBG 15s ease infinite !important;
+    overflow-y: auto !important;
+    height: 100vh !important; /* Fallback */
+    height: 100dvh !important; /* Alto dinámico: evita saltos con la barra del navegador móvil */
+    width: 100% !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    box-sizing: border-box !important;
+    padding: 20px 16px calc(150px + env(safe-area-inset-bottom, 0px)) 16px !important;
+    display: none !important;
+}
+
+@keyframes gradientBG {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+#view-explore.active {
+    display: block !important;
+}
+
+/* Columna central del feed (todas las tarjetas/secciones son hijas
+   directas de este contenedor). En >=768px se convierte en grilla de
+   2/3/4 columnas vía _responsive.css, reordenando visualmente el feed
+   sin tocar el HTML. */
+.feed-container {
+    max-width: 480px !important;
+    margin: 0 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 24px !important;
+}
+
+/* --- BUSCADOR INTERNO DE EXPLORAR --- */
+.explore-search-box {
+    display: flex !important;
+    align-items: center !important;
+    background: rgba(255, 255, 255, 0.9) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    padding: 14px 18px !important;
+    min-height: 48px !important;
+    border-radius: 22px !important;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.05) !important;
+    border: 0.5px solid rgba(255, 255, 255, 0.8) !important;
+    gap: 12px !important;
+    box-sizing: border-box !important;
+}
+
+.explore-search-box ion-icon {
+    font-size: 22px !important;
+    color: #007aff !important;
+    flex-shrink: 0 !important;
+}
+
+.explore-search-box input {
+    border: none !important;
+    background: transparent !important;
+    outline: none !important;
+    font-size: 16px !important;
+    width: 100% !important;
+    color: #1c1c1e !important;
+    font-weight: 500 !important;
+}
+
+/* --- CATEGORÍAS RÁPIDAS ---
+   Tarjetas rectangulares con foto de fondo (background-image inline en
+   cada .category-card, ver index.html) + degradé oscuro superpuesto para
+   que el ícono/texto en blanco tengan contraste sin importar la imagen.
+   Scroll horizontal, misma técnica que .events-slider de acá abajo. */
+.explore-categories {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 14px !important;
+    overflow-x: auto !important;
+    padding: 4px 2px 10px 2px !important;
+    scrollbar-width: none !important;
+}
+
+.explore-categories::-webkit-scrollbar {
+    display: none !important;
+}
+
+.category-card {
+    position: relative !important;
+    flex: 0 0 auto !important;
+    width: 132px !important;
+    height: 96px !important;
+    border-radius: 18px !important;
+    overflow: hidden !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    border: none !important;
+    padding: 0 !important;
+    cursor: pointer !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: flex-end !important;
+    gap: 2px !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Degradé oscuro de abajo hacia arriba: abajo (donde va el texto) casi
+   opaco, arriba casi transparente, para no tapar toda la foto. */
+.category-card::before {
+    content: "" !important;
+    position: absolute !important;
+    inset: 0 !important;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0.15) 60%, transparent 100%) !important;
+}
+
+.category-icon,
+.category-label {
+    position: relative !important;
+    z-index: 1 !important;
+    padding: 0 10px !important;
+}
+
+.category-icon {
+    font-size: 20px !important;
+    line-height: 1 !important;
+}
+
+.category-label {
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    color: #fff !important;
+    padding-bottom: 10px !important;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Título reutilizado por las secciones del feed (ej. "Eventos de la
+   Semana"); también se usa dentro de _juegos.css. */
+.explore-section-title {
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    color: #1c1c1e !important;
+    margin: 4px 0 -8px 4px !important;
+}
+
+/* --- SLIDER DE "EVENTOS DE LA SEMANA" ---
+   Carrusel horizontal de tarjetas cortas de eventos (fuente:
+   src/core/eventos.js + colección Firestore "eventos"). */
+.events-slider {
+    display: flex !important;
+    gap: 12px !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    padding-bottom: 4px !important;
+}
+
+.events-slider::-webkit-scrollbar {
+    display: none !important;
+}
+
+/* Foto de fondo (background-image inline, ver index.html/firebaseService.js)
+   + degradé oscuro para que fecha/título en blanco queden legibles sobre
+   cualquier imagen. Mismo criterio que .category-card de arriba. */
+.event-mini-card {
+    position: relative !important;
+    min-width: 200px !important;
+    height: 130px !important;
+    border-radius: 18px !important;
+    overflow: hidden !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    padding: 12px !important;
+    box-sizing: border-box !important;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-end !important;
+    gap: 4px !important;
+    cursor: pointer !important;
+}
+
+.event-mini-card::before {
+    content: "" !important;
+    position: absolute !important;
+    inset: 0 !important;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.2) 55%, transparent 100%) !important;
+}
+
+.event-date,
+.event-title {
+    position: relative !important;
+    z-index: 1 !important;
+}
+
+.event-date {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    color: #fff !important;
+    text-transform: uppercase !important;
+    opacity: 0.85 !important;
+}
+
+.event-title {
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #fff !important;
+    line-height: 1.3 !important;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* --- HISTORIAS DE USUARIOS ---
+   Fila de burbujas circulares con anillo degradado (estilo Instagram
+   Stories) + la burbuja "Crear Historia". Puramente decorativa por ahora
+   (ver comentario en index.html) — sin backend de historias todavía. */
+.explore-stories-users {
+    display: flex !important;
+    gap: 16px !important;
+    overflow-x: auto !important;
+    padding: 4px 2px 6px 2px !important;
+    scrollbar-width: none !important;
+}
+
+.explore-stories-users::-webkit-scrollbar {
+    display: none !important;
+}
+
+.story-user-bubble {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-shrink: 0 !important;
+    width: 72px !important;
+    cursor: default !important;
+}
+
+.story-user-bubble span {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #1c1c1e !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100% !important;
+}
+
+.story-user-avatar {
+    position: relative !important;
+    width: 64px !important;
+    height: 64px !important;
+    border-radius: 50% !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-color: #fff !important;
+    box-sizing: border-box !important;
+    /* Separa la foto (background-image inline en el HTML) del anillo
+       degradado, que va aparte en ::before para no competir por la misma
+       propiedad background-image con la foto real de cada usuario. */
+    border: 3px solid #fff !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+.story-user-avatar::before {
+    content: "" !important;
+    position: absolute !important;
+    inset: -3px !important;
+    z-index: -1 !important;
+    border-radius: 50% !important;
+    background: linear-gradient(135deg, #f9a826, #ff5c5c, #d94f8c, #8a4fc9) !important;
+}
+
+.story-user-avatar--create {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: #e8f4ff !important;
+    color: #0a84ff !important;
+    font-size: 24px !important;
+}
+
+.story-user-avatar--create::before {
+    background: transparent !important;
+}
+
+.story-user-plus {
+    position: absolute !important;
+    bottom: -2px !important;
+    right: -2px !important;
+    width: 20px !important;
+    height: 20px !important;
+    border-radius: 50% !important;
+    background: #0a84ff !important;
+    color: #fff !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: 2px solid #fff !important;
+}
+
+/* --- FEED DE LA COMUNIDAD ---
+   Publicaciones estilo red social: imagen/video de fondo, ubicación,
+   avatar+usuario+me gusta, caption, y una fila de acciones (me gusta,
+   comentarios, compartir). Scroll horizontal en mobile; grilla real en
+   tablet/desktop (ver _responsive.css). */
+.feed-grid-community {
+    display: flex !important;
+    gap: 16px !important;
+    overflow-x: auto !important;
+    padding: 4px 2px 10px 2px !important;
+    scrollbar-width: none !important;
+}
+
+.feed-grid-community::-webkit-scrollbar {
+    display: none !important;
+}
+
+.feed-post-card {
+    position: relative !important;
+    flex: 0 0 auto !important;
+    width: 220px !important;
+    border-radius: 22px !important;
+    overflow: hidden !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1) !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.feed-post-media {
+    position: relative !important;
+    width: 100% !important;
+    height: 260px !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-end !important;
+}
+
+/* Variante "video vertical": más alta que el resto de las tarjetas. */
+.feed-post-card--tall .feed-post-media {
+    height: 320px !important;
+}
+
+/* Variante usada por la tarjeta de gastronomía: la foto no ocupa toda la
+   tarjeta, deja lugar a .feed-post-content debajo (fondo blanco, no overlay). */
+.feed-post-media--short {
+    height: 160px !important;
+    justify-content: flex-start !important;
+}
+
+.feed-post-location {
+    position: absolute !important;
+    top: 14px !important;
+    left: 14px !important;
+    max-width: calc(100% - 28px) !important;
+    background: rgba(0, 0, 0, 0.6) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    color: #fff !important;
+    padding: 6px 12px !important;
+    border-radius: 20px !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    cursor: pointer !important;
+}
+
+.feed-post-location ion-icon {
+    font-size: 14px !important;
+    flex-shrink: 0 !important;
+}
+
+/* Botón central de "reproducir" para las publicaciones tipo video. */
+.feed-post-play {
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 56px !important;
+    height: 56px !important;
+    border-radius: 50% !important;
+    background: rgba(0, 0, 0, 0.45) !important;
+    backdrop-filter: blur(6px) !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.6) !important;
+    color: #fff !important;
+    font-size: 22px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+}
+
+/* Degradé oscuro para que el contenido de abajo (usuario/caption/acciones)
+   se lea bien encima de cualquier foto, mismo criterio que .category-card. */
+.feed-post-overlay {
+    position: relative !important;
+    padding: 30px 14px 14px 14px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.35) 65%, transparent 100%) !important;
+}
+
+.feed-post-user-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+}
+
+.feed-post-avatar {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 50% !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-color: var(--bg-muted, #f2f2f7) !important;
+    flex-shrink: 0 !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.8) !important;
+}
+
+.feed-post-avatar--icon {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: #007aff !important;
+    font-size: 15px !important;
+}
+
+.feed-post-username {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    color: #fff !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+.feed-post-overlay .feed-post-username {
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+}
+
+.feed-post-like-btn {
+    background: transparent !important;
+    border: none !important;
+    color: #ff3b30 !important;
+    font-size: 18px !important;
+    padding: 4px !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.feed-post-caption {
+    margin: 0 !important;
+    font-size: 12.5px !important;
+    line-height: 1.4 !important;
+    color: #fff !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+}
+
+.feed-post-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 14px !important;
+    margin-top: 2px !important;
+}
+
+.feed-post-action {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: #fff !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+}
+
+.feed-post-action--share {
+    margin-left: auto !important;
+}
+
+/* Bloque de contenido separado (fondo blanco, no overlay sobre la foto) —
+   lo usa la tarjeta de gastronomía, que además suma la fila de estrellas. */
+.feed-post-content {
+    padding: 12px 14px 14px 14px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+}
+
+.feed-post-content .feed-post-username {
+    color: #1c1c1e !important;
+}
+
+.feed-post-content .feed-post-caption {
+    color: #3a3a3c !important;
+    text-shadow: none !important;
+}
+
+.feed-post-content .feed-post-action {
+    color: var(--text-sec, #8e8e93) !important;
+    text-shadow: none !important;
+}
+
+.feed-post-rating {
+    display: inline-flex !important;
+    gap: 1px !important;
+    color: #ffb100 !important;
+    font-size: 13px !important;
+}
+
+.feed-post-actions--light {
+    border-top: 1px solid rgba(0, 0, 0, 0.06) !important;
+    padding-top: 8px !important;
+}
+
+/* --- RUTAS TEMÁTICAS DE LA COMUNIDAD ("playlists" de lugares) ---
+   Tarjeta con miniaturas superpuestas de los primeros 3 lugares + título +
+   avatar/nombre del creador. Mismo criterio de scroll horizontal que el
+   resto de los carruseles de Explorar (.explore-categories, .events-slider). */
+.rutas-tematicas-scroll {
+    display: flex !important;
+    gap: 16px !important;
+    overflow-x: auto !important;
+    padding: 4px 2px 10px 2px !important;
+    scrollbar-width: none !important;
+}
+
+.rutas-tematicas-scroll::-webkit-scrollbar {
+    display: none !important;
+}
+
+.ruta-card {
+    flex: 0 0 auto !important;
+    width: 220px !important;
+    border-radius: 20px !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1) !important;
+    overflow: hidden !important;
+    border: none !important;
+    padding: 0 !important;
+    cursor: pointer !important;
+    text-align: left !important;
+    font-family: inherit !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.ruta-card:hover {
+    transform: translateY(-3px) !important;
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.14) !important;
+}
+
+.ruta-card:active {
+    transform: scale(0.98) !important;
+}
+
+.ruta-card-thumbs {
+    position: relative !important;
+    height: 120px !important;
+    background: var(--bg-muted, #f2f2f7) !important;
+}
+
+.ruta-thumb {
+    position: absolute !important;
+    width: 70px !important;
+    height: 70px !important;
+    border-radius: 14px !important;
+    object-fit: cover !important;
+    border: 3px solid #fff !important;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15) !important;
+}
+
+.ruta-thumb-1 { left: 12px; top: 12px; z-index: 3; }
+.ruta-thumb-2 { left: 48px; top: 30px; z-index: 2; }
+.ruta-thumb-3 { left: 84px; top: 12px; z-index: 1; }
+
+.ruta-card-count {
+    position: absolute !important;
+    right: 12px !important;
+    bottom: 10px !important;
+    background: rgba(0, 0, 0, 0.65) !important;
+    color: #fff !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    padding: 4px 10px !important;
+    border-radius: 12px !important;
+}
+
+.ruta-card-body {
+    padding: 12px 14px 14px 14px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+}
+
+.ruta-card-title {
+    margin: 0 !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: #1c1c1e !important;
+    line-height: 1.3 !important;
+}
+
+.ruta-card-creator {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    font-size: 11.5px !important;
+    color: var(--text-sec, #8e8e93) !important;
+}
+
+.ruta-creator-avatar {
+    width: 20px !important;
+    height: 20px !important;
+    border-radius: 50% !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-color: var(--bg-muted, #f2f2f7) !important;
+    flex-shrink: 0 !important;
+}
+
+/* ==========================================
+   MODO OSCURO
+   Todo lo de arriba es "vidrio" claro estilo iOS a propósito; acá se
+   redefine cada superficie/texto sólo para body.dark-mode.
+   ========================================== */
+body.dark-mode #view-explore {
+    background: linear-gradient(-45deg, #1c1c1e, #2c1c2e, #16213a, #1c2e26) !important;
+}
+
+/* .event-mini-card y .feed-post-media ya no llevan esto: son una foto con
+   overlay, no una superficie de color sólido — se ven igual en claro y
+   oscuro a propósito. */
+body.dark-mode .explore-search-box {
+    background: rgba(28, 28, 30, 0.9) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.dark-mode .explore-search-box input,
+body.dark-mode .explore-section-title,
+body.dark-mode .story-user-bubble span {
+    color: var(--text-main, #fff) !important;
+}
+
+/* El bloque de contenido de la tarjeta de gastronomía (fondo blanco, no
+   overlay) sí necesita su propio ajuste en oscuro. */
+body.dark-mode .feed-post-card,
+body.dark-mode .ruta-card {
+    background: rgba(28, 28, 30, 0.95) !important;
+}
+
+body.dark-mode .ruta-card-title {
+    color: var(--text-main, #fff) !important;
+}
+
+body.dark-mode .feed-post-content .feed-post-username {
+    color: var(--text-main, #fff) !important;
+}
+
+body.dark-mode .feed-post-content .feed-post-caption {
+    color: var(--text-sec, #98989f) !important;
+}
+
+body.dark-mode .feed-post-actions--light {
+    border-top-color: rgba(255, 255, 255, 0.08) !important;
+}

@@ -1,0 +1,108 @@
+/* ==========================================
+   ESTILOS BASE - src/styles/_base.css
+   Reglas globales de la app (html/body, contenedor raíz y las 4 vistas
+   de la SPA). Mobile-first: todo acá es la base para pantallas chicas;
+   los ajustes por ancho de pantalla se agregan en _responsive.css.
+   ========================================== */
+
+/* Lienzo raíz: ocupa toda la ventana, sin scroll propio (cada vista
+   maneja su propio overflow-y más abajo). */
+body, html {
+    width: 100%;
+    height: 100%; /* Fallback para navegadores sin soporte de dvh */
+    height: 100dvh; /* Alto dinámico: evita saltos al mostrar/ocultar la UI del navegador móvil (barra de direcciones/teclado) */
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: var(--bg-body) !important;
+    color: var(--text-main) !important;
+    /* Tipografía moderna de toda la app: Outfit (importada en
+       _variables.css) con la pila de sistema como respaldo si por algún
+       motivo no llega a cargar (sin conexión, bloqueo de Google Fonts, etc). */
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    /* Para que el cambio claro/oscuro se vea como un degradé real (no un
+       salto instantáneo) mientras el círculo de #theme-transition-overlay
+       barre la pantalla (ver src/ui/events.js). */
+    transition: background-color 0.5s ease, color 0.5s ease;
+}
+
+/* Envoltorio de toda la SPA (mapa/explorar/juegos/perfil apilados) */
+.app-container {
+    position: relative;
+    width: 100%;
+    height: 100vh; /* Fallback */
+    height: 100dvh; /* Alto dinámico */
+    overflow: hidden;
+    background-color: var(--bg-body) !important;
+    transition: background-color 0.5s ease;
+}
+
+/* Vista genérica: cada una de las 4 pestañas (#view-map, #view-explore,
+   #view-juegos, #view-profile) hereda esta base y se muestra u oculta
+   agregando/quitando la clase .active (src/ui/uiManager.js -> cambiarTab).
+   padding-bottom deja lugar para que el contenido no quede tapado por la
+   barra inferior fija (.bottom-nav) al hacer scroll. */
+.app-view {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--bg-body) !important;
+    overflow-y: auto;
+    padding-bottom: 120px;
+}
+
+.app-view.active {
+    display: block;
+}
+
+/* La vista del mapa es la excepción: no hace scroll de página (el mapa
+   ocupa toda la pantalla y los elementos flotan sobre él con position:
+   absolute), así que no necesita el overflow-y ni el padding-bottom
+   reservados arriba para las demás vistas. */
+#view-map.active {
+    display: block;
+    overflow: hidden;
+}
+
+/* Banner de "sin conexión" (src/utils/offlineStatus.js lo muestra/oculta
+   quitando/poniendo .hidden — antes tenía display:none !important fijo acá,
+   así que jamás se veía sin importar lo que hiciera el JS). Estilo toast
+   sutil, no un cartel de alarma: franja angosta arriba, glass oscuro. */
+.offline-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px 16px;
+    background: rgba(28, 28, 30, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.offline-banner ion-icon {
+    font-size: 16px;
+    color: #ff9500;
+    flex-shrink: 0;
+}
+
+/* Estado atenuado para cualquier control [data-requiere-red] mientras no
+   hay conexión (ver src/utils/offlineStatus.js). Atenúa en vez de ocultar:
+   el usuario sigue viendo que la función existe, solo que ahora no se puede
+   usar sin señal. */
+.offline-disabled {
+    opacity: 0.45 !important;
+    pointer-events: none !important;
+    cursor: not-allowed !important;
+}

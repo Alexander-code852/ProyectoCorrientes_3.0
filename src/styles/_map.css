@@ -1,0 +1,1034 @@
+/* ==========================================
+   ESTILOS DE LA VISTA MAPA - src/styles/_map.css
+   Contiene: contenedor del mapa Leaflet, barra superior (buscador +
+   filtros + tarjeta de recomendación), panel de capas, botones flotantes,
+   FAB del chat, pines/popups del mapa, marcador GPS del usuario y la
+   tarjeta de navegación turno-a-turno.
+   Mobile-first: estas reglas son la base para pantallas chicas; los
+   ajustes por tamaño de pantalla viven en _responsive.css.
+   ========================================== */
+
+/* Vista base compartida por las 4 pestañas (mapa/explorar/juegos/perfil):
+   oculta por defecto, se muestra agregando la clase .active (ver
+   src/ui/uiManager.js -> cambiarTab). Acá se especializa para el mapa. */
+.app-view {
+    display: none !important;
+}
+
+.app-view.active {
+    display: block !important;
+    height: 100vh !important; /* Fallback para navegadores sin soporte de dvh */
+    height: 100dvh !important; /* Alto "dinámico": evita saltos al mostrar/ocultar la barra de direcciones del navegador móvil */
+    width: 100% !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+/* La vista del mapa posiciona todo con position:absolute/bottom, así que no
+   necesita el padding-bottom reservado en _base.css para el scroll de las
+   otras vistas; si queda, infla la caja del contenedor y desplaza hacia
+   abajo (fuera de pantalla) a los elementos flotantes anclados con "bottom". */
+#view-map.active {
+    padding-bottom: 0 !important;
+}
+
+/* Lienzo real de Leaflet (mapManager.js hace L.map('map')). Ocupa toda la
+   pantalla y queda debajo (z-index 1) de la barra superior, los botones
+   flotantes, el chat y las fichas. */
+#map {
+    width: 100% !important;
+    height: 100vh !important; /* Fallback */
+    height: 100dvh !important; /* Alto dinámico: sigue a la barra de direcciones móvil */
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 1 !important;
+}
+
+/* --- BARRA SUPERIOR DEL MAPA (panel de vidrio unificado) ---
+   Antes .map-top-bar era un envoltorio invisible (pointer-events:none, sin
+   fondo) y cada hijo (buscador, pastillas) tenía su propio "vidrio" suelto
+   con su propia sombra — dos tarjetas apiladas, no un panel. Ahora ES el
+   panel de glassmorphism único que agrupa todo (buscador + resultados +
+   pastillas), y cada hijo de adentro pasa a tener su propio volumen 3D
+   (abombado/neumórfico) en vez de su propio fondo de vidrio.
+   En escritorio (>=1024px, ver _responsive.css) este panel se convierte
+   en un panel lateral izquierdo en vez de una franja superior. */
+.map-top-bar {
+    position: absolute !important;
+    /* env(safe-area-inset-top) suma el alto del notch/isla dinámica en iOS
+       para que el buscador no quede pegado (o tapado) contra ese borde. */
+    top: calc(16px + env(safe-area-inset-top, 0px)) !important;
+    /* Centrado explícito (left:50% + translateX(-50%)) en vez de depender
+       de left/right + margin:auto: ese otro método centra según el ancho
+       "natural" del contenido (shrink-to-fit), que acá puede variar mucho
+       porque .filter-pills-container tiene muchas pastillas en una fila
+       sin wrap. Con left:50%/transform el centrado es exacto sin importar
+       cuánto contenido tengan los hijos, y sigue siendo responsive porque
+       el ancho real lo da width (fluido) recortado por max-width. */
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    width: calc(100% - 32px) !important;
+    max-width: 480px !important;
+    margin: 0 !important;
+    z-index: 1000 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+    pointer-events: auto !important;
+    background: rgba(255, 255, 255, 0.4) !important;
+    backdrop-filter: blur(16px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+    border-radius: 24px !important;
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
+    padding: 14px !important;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+    box-sizing: border-box !important;
+}
+
+/* Buscador "abombado": ya no es su propia tarjeta de vidrio (eso lo da el
+   panel .map-top-bar que lo envuelve), sino una superficie con relieve
+   físico logrado 100% con box-shadow inset — luz entrando arriba, sombra
+   hundida abajo, más una sombra externa chica para separarlo del panel. */
+.search-box-container {
+    pointer-events: auto !important;
+    display: flex !important;
+    align-items: center !important;
+    background: rgba(255, 255, 255, 0.55) !important;
+    padding: 16px 20px !important;
+    min-height: 52px !important;
+    border-radius: 20px !important;
+    border: none !important;
+    box-shadow:
+        inset 0 2px 3px rgba(255, 255, 255, 0.9),
+        inset 0 -3px 6px rgba(0, 0, 0, 0.08),
+        0 6px 14px rgba(0, 0, 0, 0.1) !important;
+    gap: 14px !important;
+    box-sizing: border-box !important;
+}
+
+.search-box-container ion-icon {
+    font-size: 24px !important;
+    color: #007aff !important;
+    flex-shrink: 0 !important;
+    /* "Ligero gradiente o sombra" del ícono: un reflejo claro arriba +
+       sombra azul oscura abajo, mismo criterio de relieve que el resto. */
+    filter: drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.7)) drop-shadow(0 1px 1px rgba(0, 60, 150, 0.35)) !important;
+}
+
+.search-box-container input {
+    border: none !important;
+    background: transparent !important;
+    outline: none !important;
+    font-size: 17px !important;
+    width: 100% !important;
+    color: #1c1c1e !important;
+    font-weight: 500 !important;
+}
+
+.filter-pills-container {
+    pointer-events: auto !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 12px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 2px 4px 6px 4px !important;
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important; /* Edge legacy */
+}
+
+/* Chrome/Safari no respetan scrollbar-width: hay que ocultar el pseudo-
+   elemento de la scrollbar explícitamente, si no queda una franja gris
+   fina debajo de las pastillas. */
+.filter-pills-container::-webkit-scrollbar {
+    display: none !important;
+}
+
+/* Pastillas neumórficas: metal/plástico mate en reposo (inset claro arriba
+   + inset oscuro abajo simulan una superficie curva iluminada desde
+   arriba), forma de píldora perfecta. */
+.filter-pill {
+    background: linear-gradient(145deg, #f6f6f8, #e3e3e7) !important;
+    border: none !important;
+    padding: 12px 18px !important;
+    min-height: 44px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    border-radius: 50px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: #3a3a3c !important;
+    box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.85),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.08),
+        0 3px 7px rgba(0, 0, 0, 0.08) !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.filter-pill ion-icon {
+    font-size: 15px !important;
+    flex-shrink: 0 !important;
+}
+
+.filter-pill:active {
+    transform: scale(0.96) !important;
+}
+
+/* Activa: "vidrio/plástico brillante" azul — mismo relieve inset que la
+   inactiva, pero con un tono profundo + una sombra externa azulada más
+   marcada para que se lea claramente como la seleccionada. */
+.filter-pill.active {
+    background: linear-gradient(145deg, #0a84ff, #0060df) !important;
+    color: #fff !important;
+    box-shadow:
+        inset 0 1px 2px rgba(255, 255, 255, 0.5),
+        inset 0 -3px 6px rgba(0, 30, 110, 0.35),
+        0 8px 18px rgba(10, 132, 255, 0.45) !important;
+}
+
+/* --- TARJETA "RECOMENDADO PARA HOY" ---
+   Flota anclada al fondo del mapa, independiente de .map-top-bar (así la
+   cantidad de pastillas de filtro nunca la empuja ni tapa más mapa del
+   necesario). Mismo criterio de centrado que .map-top-bar (left:50% +
+   translateX) y "bottom" con safe-area, elevada por encima de .bottom-nav
+   (ver esa altura en _components.css: 20px + safe-area + su propio alto). */
+.map-suggestion-card {
+    position: absolute !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
+    width: calc(100% - 32px) !important;
+    max-width: 480px !important;
+    z-index: 999 !important;
+    pointer-events: auto !important;
+    /* Glassmorphism sutil: más transparente que un panel blanco sólido,
+       para que se intuya el mapa detrás, pero con blur suficiente para
+       que el texto siga siendo legible sobre cualquier fondo. */
+    background: rgba(255, 255, 255, 0.82) !important;
+    backdrop-filter: blur(24px) saturate(160%) !important;
+    -webkit-backdrop-filter: blur(24px) saturate(160%) !important;
+    border: 0.5px solid rgba(255, 255, 255, 0.4) !important;
+    padding: 14px 16px !important;
+    border-radius: 24px !important;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.16) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 14px !important;
+    cursor: pointer !important;
+    box-sizing: border-box !important;
+}
+
+.suggestion-info {
+    min-width: 0 !important;
+}
+
+.suggestion-info h4 {
+    margin: 0 0 3px 0 !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: #1c1c1e !important;
+}
+
+.suggestion-info p {
+    margin: 0 !important;
+    font-size: 13px !important;
+    color: #55555a !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+}
+
+/* Fade + slide sutil al rotar de lugar (ver recomendacionHoy.js: agrega/saca
+   esta clase antes/después de cambiar el texto). DURACION_FADE_MS en ese
+   archivo debe quedar igual a esta duración para que el swap de texto pase
+   justo en el punto de opacidad 0. */
+.suggestion-text {
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+    transition: opacity 0.28s ease, transform 0.28s ease !important;
+}
+
+.suggestion-text--saliendo {
+    opacity: 0 !important;
+    transform: translateY(4px) !important;
+}
+
+.suggestion-action-icon {
+    width: 40px !important;
+    height: 40px !important;
+    border-radius: 50% !important;
+    background: #007aff !important;
+    color: white !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 18px !important;
+    flex-shrink: 0 !important;
+    align-self: center !important;
+}
+
+/* --- BOTONERA FLOTANTE (GPS / capas / reportar) ---
+   Columna de botones circulares sobre el borde derecho del mapa, elevada
+   (bottom: 140px) para no chocar con la barra inferior de navegación. */
+.map-floating-actions {
+    position: absolute !important;
+    right: 16px !important;
+    bottom: 140px !important;
+    z-index: 1000 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+}
+
+.btn-float {
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 50% !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(20px) !important;
+    border: 0.5px solid rgba(0, 0, 0, 0.06) !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 20px !important;
+    color: #007aff !important;
+    cursor: pointer !important;
+}
+
+/* --- BOTÓN FLOTANTE DEL CHAT (FAB) ---
+   Abre/cierra el widget de chat con la IA (#chat-widget en _components.css).
+   Espejado a la izquierda respecto de .map-floating-actions. */
+.chat-float-btn {
+    position: absolute !important;
+    left: 16px !important;
+    bottom: 140px !important;
+    z-index: 1000 !important;
+    width: 46px !important;
+    height: 46px !important;
+    border-radius: 50% !important;
+    background: linear-gradient(135deg, #007aff, #0055ff) !important;
+    border: none !important;
+    box-shadow: 0 8px 25px rgba(0, 122, 255, 0.35) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 22px !important;
+    color: white !important;
+    cursor: pointer !important;
+}
+
+/* --- PANEL DE CAPAS ---
+   Se despliega junto al botón de capas (#btn-layer-toggle) para activar
+   overlays del mapa (calor, tráfico). Oculto por defecto vía .hidden. */
+.layer-panel {
+    position: absolute !important;
+    right: 76px !important;
+    bottom: 195px !important;
+    width: 220px !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    padding: 16px !important;
+    border-radius: 20px !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12) !important;
+    border: 0.5px solid rgba(0, 0, 0, 0.08) !important;
+    z-index: 1005 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+}
+
+.layer-panel.hidden {
+    display: none !important;
+}
+
+.layer-panel h4 {
+    margin: 0 0 4px 0 !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: #1c1c1e !important;
+}
+
+.layer-panel label {
+    font-size: 13px !important;
+    color: #1c1c1e !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    cursor: pointer !important;
+    font-weight: 500 !important;
+}
+
+.layer-panel-divider {
+    width: 100% !important;
+    border: none !important;
+    border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+    margin: 0 !important;
+}
+
+body.dark-mode .layer-panel-divider {
+    border-top-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.leaflet-control-zoom {
+    display: none !important;
+}
+
+/* ==========================================
+   ESTILOS PARA PINS Y POPUPS MODERNOS EN MAPA
+   ========================================== */
+
+.custom-map-pin,
+.route-origin-marker,
+.ruta-tematica-pin {
+    background: transparent !important;
+    border: none !important;
+}
+
+.custom-map-pin div {
+    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+/* Pines numerados de una ruta temática (rutaTematicaRenderer.js) — círculo
+   violeta sólido, distinto del pin blanco con emoji de los lugares sueltos,
+   para que se lea claramente como "parada N de un recorrido". */
+.ruta-tematica-pin-circulo {
+    background: #af52de;
+    color: #fff;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 13px;
+    border: 2.5px solid white;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.custom-map-pin div:hover {
+    transform: scale(1.1) !important;
+    box-shadow: 0 6px 16px rgba(0, 122, 255, 0.4) !important;
+}
+
+/* El pane de popups de Leaflet trae z-index:700 por defecto; lo subimos para que
+   gane frente a los demás panes de Leaflet (tiles, markers, tooltips) dentro del
+   mapa. OJO: esto NO alcanza para ganarle a la barra superior ni al panel de
+   capas, porque #map tiene su propio z-index (ver arriba) y crea un contexto de
+   apilamiento aparte — nada de adentro de #map puede superar a un hermano de
+   #map sin importar qué z-index interno se le ponga. Ese caso se resuelve
+   ocultando la barra superior mientras hay un popup abierto (mapManager.js). */
+.leaflet-pane.leaflet-popup-pane {
+    z-index: 10000 !important;
+}
+
+/* Personalización moderna para el Popup de Leaflet estilo iOS */
+.leaflet-popup-content-wrapper {
+    padding: 0 !important;
+    overflow: hidden !important;
+    border-radius: 22px !important;
+    /* Sombra amplia y muy difuminada (en vez de una sombra chica y oscura):
+       da sensación de flotar sobre el mapa en vez de "bloque recortado". */
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border: 0.5px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+.leaflet-popup-content {
+    margin: 0 !important;
+    line-height: normal !important;
+}
+
+/* Botón "X" nativo de Leaflet: círculo gris al hover en vez de solo cambiar
+   el color del texto, para que se lea claramente como clickeable. */
+.leaflet-container a.leaflet-popup-close-button {
+    top: 12px !important;
+    right: 12px !important;
+    width: 26px !important;
+    height: 26px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    color: #8e8e93 !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    transition: background-color 0.15s ease, color 0.15s ease !important;
+}
+
+.leaflet-container a.leaflet-popup-close-button:hover {
+    background: rgba(0, 0, 0, 0.06) !important;
+    color: #1c1c1e !important;
+}
+
+.leaflet-popup-tip {
+    background: rgba(255, 255, 255, 0.98) !important;
+    /* El tip hereda su propio box-shadow por default de Leaflet, separado
+       del wrapper; sin esto se ve un borde/sombra "cortada" donde se tocan. */
+    box-shadow: none !important;
+}
+
+/* --- CONTENIDO DE LOS POPUPS (lugar / evento / reporte) ---
+   Estructura compartida armada en firebaseService.js (crearPopupHTML):
+   badge de categoría + título + texto(s) secundario(s) + botón "Cómo
+   llegar" opcional. El color de acento cambia con el modificador
+   --azul/--violeta/--rojo según el tipo de pin. */
+.popup-card {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    padding: 22px 20px 18px 20px;
+}
+
+.popup-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+}
+
+.popup-badge--azul { color: #0a6cd8; background: rgba(0, 122, 255, 0.12); }
+.popup-badge--violeta { color: #8e3bb8; background: rgba(175, 82, 222, 0.12); }
+.popup-badge--rojo { color: #d92c22; background: rgba(255, 59, 48, 0.12); }
+
+.popup-title {
+    margin: 0 0 6px 0;
+    font-size: 16px;
+    font-weight: 800;
+    color: #1c1c1e;
+    line-height: 1.15;
+}
+
+.popup-desc {
+    margin: 0 0 16px 0;
+    font-size: 13px;
+    color: #58585c;
+    line-height: 1.45;
+}
+
+.popup-desc:last-child {
+    margin-bottom: 0;
+}
+
+.popup-meta {
+    margin: 0 0 4px 0;
+    font-size: 12px;
+    color: #8e8e93;
+}
+
+.popup-meta--violeta {
+    color: #af52de;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.popup-btn-primary {
+    width: 100%;
+    border: none;
+    border-radius: 14px;
+    padding: 12px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.popup-btn-primary:hover {
+    filter: brightness(1.08);
+}
+
+.popup-btn-primary:active {
+    transform: scale(0.97);
+    filter: brightness(0.95);
+}
+
+.popup-btn-primary--azul {
+    background: linear-gradient(135deg, #0a84ff, #0066e0);
+    box-shadow: 0 8px 20px rgba(10, 132, 255, 0.28);
+}
+
+.popup-btn-primary--violeta {
+    background: linear-gradient(135deg, #b768e0, #8e3bb8);
+    box-shadow: 0 8px 20px rgba(175, 82, 222, 0.28);
+}
+
+/* Fila de deep links de transporte (Uber/DiDi Moto), debajo de "Cómo
+   llegar". CTA secundario a propósito: negro/naranja en vez del azul de
+   "Cómo llegar", para no competir con la acción principal del popup. */
+.popup-transporte-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.popup-btn-transporte {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: #1c1c1e;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 10px;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.popup-btn-transporte ion-icon {
+    font-size: 15px;
+}
+
+.popup-btn-transporte:hover {
+    filter: brightness(1.15);
+}
+
+.popup-btn-transporte:active {
+    transform: scale(0.96);
+}
+
+.popup-btn-transporte--didi {
+    background: linear-gradient(135deg, #ff7a00, #ff9500);
+}
+
+/* Marcador de ubicación del usuario (punto azul con pulso) */
+.user-gps-marker {
+    background: transparent !important;
+    border: none !important;
+}
+
+.user-gps-dot {
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 16px !important;
+    height: 16px !important;
+    background: #007aff !important;
+    border-radius: 50% !important;
+    border: 3px solid white !important;
+    box-shadow: 0 0 10px rgba(0, 122, 255, 0.5) !important;
+    z-index: 2 !important;
+}
+
+.user-gps-pulse {
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 16px !important;
+    height: 16px !important;
+    background: rgba(0, 122, 255, 0.35) !important;
+    border-radius: 50% !important;
+    animation: gps-pulse 2.2s infinite ease-out !important;
+    z-index: 1 !important;
+}
+
+@keyframes gps-pulse {
+    0% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
+    100% { transform: translate(-50%, -50%) scale(3.4); opacity: 0; }
+}
+
+/* ==========================================
+   ESTILOS DE NAVEGACIÓN ESTILO GOOGLE MAPS
+   Tarjeta flotante inferior con instrucciones giro-a-giro (acordeón
+   colapsable) y selector de rutas alternativas. Usada por el flujo de
+   ruteo OSRM de src/services/firebaseService.js.
+   ========================================== */
+.navigation-card {
+    position: absolute !important;
+    top: auto !important;
+    bottom: 118px !important;
+    left: 16px !important;
+    right: 16px !important;
+    max-width: 340px !important;
+    margin: 0 auto !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    /* Mismo radio y misma sombra difusa que .map-suggestion-card y los
+       popups del mapa: una sola familia de tarjetas flotantes, no varias
+       curvaturas/sombras distintas conviviendo en la misma pantalla. */
+    border-radius: 24px !important;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.16) !important;
+    border: 0.5px solid rgba(0, 0, 0, 0.08) !important;
+    z-index: 2000 !important;
+    padding: 12px 14px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+
+/* Fila superior de la tarjeta: título de la ruta + botones de cerrar/expandir */
+.navigation-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+}
+
+/* Estado "calculando ruta" (antes de recibir respuesta de OSRM) */
+.navigation-loading {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #3a3a3c !important;
+    padding: 4px 2px !important;
+}
+
+.mini-spinner {
+    width: 18px !important;
+    height: 18px !important;
+    border: 2.5px solid rgba(0, 122, 255, 0.2) !important;
+    border-top-color: #007aff !important;
+    border-radius: 50% !important;
+    flex-shrink: 0 !important;
+    animation: mini-spin 0.7s linear infinite !important;
+}
+
+@keyframes mini-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Título de la calle actual + distancia/tiempo restante */
+.navigation-title-box {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+}
+
+.navigation-title-box h3 {
+    margin: 0 0 2px 0 !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: #1c1c1e !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+.navigation-title-box p {
+    margin: 0 !important;
+    font-size: 12px !important;
+    color: #1a73e8 !important;
+    font-weight: 600 !important;
+}
+
+/* Botón circular para cerrar la navegación y botón para
+   expandir/colapsar el acordeón de pasos (.navigation-steps-wrapper) */
+.btn-close-navigation,
+.btn-toggle-steps {
+    background: #f2f2f7 !important;
+    border: none !important;
+    width: 30px !important;
+    height: 30px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 15px !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    transition: background-color 0.15s ease, transform 0.15s ease !important;
+}
+
+.btn-close-navigation:hover,
+.btn-toggle-steps:hover {
+    background: #e5e5ea !important;
+}
+
+.btn-close-navigation:active,
+.btn-toggle-steps:active {
+    transform: scale(0.92) !important;
+}
+
+.btn-close-navigation {
+    color: #ff3b30 !important;
+    font-weight: 700 !important;
+}
+
+.btn-toggle-steps {
+    color: #007aff !important;
+    font-size: 18px !important;
+}
+
+.btn-toggle-steps ion-icon {
+    transition: transform 0.3s ease !important;
+}
+
+.btn-toggle-steps[aria-expanded="true"] ion-icon {
+    transform: rotate(180deg) !important;
+}
+
+/* Acordeón: colapsado por defecto para no tapar el mapa */
+.navigation-steps-wrapper {
+    max-height: 0 !important;
+    overflow: hidden !important;
+    transition: max-height 0.35s ease, margin-top 0.35s ease !important;
+    margin-top: 0 !important;
+}
+
+.navigation-steps-wrapper.expanded {
+    max-height: 260px !important;
+    overflow-y: auto !important;
+    margin-top: 10px !important;
+    padding-top: 10px !important;
+    border-top: 1px solid rgba(0, 0, 0, 0.06) !important;
+    scrollbar-width: thin !important;
+}
+
+.navigation-steps-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    padding-right: 4px !important;
+}
+
+/* Selector de rutas alternativas */
+.route-alt-pills {
+    display: flex !important;
+    gap: 6px !important;
+    overflow-x: auto !important;
+    margin-top: 10px !important;
+    padding-top: 10px !important;
+    border-top: 1px solid rgba(0, 0, 0, 0.06) !important;
+    scrollbar-width: none !important;
+}
+
+.route-alt-pill {
+    background: #f2f2f7 !important;
+    border: none !important;
+    color: #3a3a3c !important;
+    padding: 7px 12px !important;
+    border-radius: 14px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+}
+
+.route-alt-pill.active {
+    background: #007aff !important;
+    color: #fff !important;
+}
+
+/* Cada renglón de instrucción giro-a-giro dentro de la lista expandida */
+.navigation-step-item {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    font-size: 13px !important;
+    color: #3a3a3c !important;
+    padding: 8px 10px !important;
+    border-radius: 12px !important;
+    background: #f8f8f6 !important;
+}
+
+.step-info {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+}
+
+.step-text {
+    font-weight: 500 !important;
+    line-height: 1.3 !important;
+}
+
+.step-distance {
+    font-weight: 600 !important;
+    color: #8e8e93 !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+    padding-left: 8px !important;
+}
+
+/* Alternativa en colectivo dentro de la tarjeta de navegación — contenido
+   de ejemplo (ver comentario en routingService.js), sin fuente de datos
+   real de líneas de colectivo todavía. */
+.transit-alternative {
+    padding: 0 14px 12px 14px !important;
+}
+
+.transit-alternative-title {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    margin: 10px 0 8px 0 !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    color: #8e8e93 !important;
+}
+
+.transit-option-card {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    background: #f8f8f6 !important;
+    border-radius: 14px !important;
+    padding: 10px 12px !important;
+}
+
+.transit-line-badge {
+    background: #1a73e8 !important;
+    color: #fff !important;
+    font-weight: 800 !important;
+    font-size: 12px !important;
+    padding: 6px 10px !important;
+    border-radius: 10px !important;
+    flex-shrink: 0 !important;
+}
+
+.transit-option-info {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+    min-width: 0 !important;
+}
+
+.transit-option-title {
+    font-weight: 700 !important;
+    font-size: 13px !important;
+    color: #1c1c1e !important;
+}
+
+.transit-option-meta {
+    font-size: 11.5px !important;
+    color: #8e8e93 !important;
+    display: flex !important;
+    gap: 8px !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+}
+
+/* ==========================================
+   MODO OSCURO
+   Todo lo de arriba está fijado a "vidrio" claro estilo iOS a propósito;
+   acá se redefine cada superficie/texto sólo para body.dark-mode, sin
+   tocar el look en modo claro. Los paneles usan :not(.active) donde hace
+   falta para no pisar el estado activo (ej. .filter-pill.active en azul),
+   porque "body.dark-mode .filter-pill" es más específico que ".filter-pill.active" solo. */
+body.dark-mode .map-suggestion-card,
+body.dark-mode .btn-float,
+body.dark-mode .layer-panel,
+body.dark-mode .navigation-card,
+body.dark-mode .leaflet-popup-content-wrapper,
+body.dark-mode .leaflet-popup-tip {
+    background: rgba(28, 28, 30, 0.92) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* El panel de vidrio y el buscador abombado tienen su propio tratamiento
+   en oscuro (no el mismo fondo plano que los popups/tarjetas de arriba):
+   siguen siendo "vidrio"/relieve, solo que sobre superficies oscuras en
+   vez de claras. */
+body.dark-mode .map-top-bar {
+    background: rgba(28, 28, 30, 0.55) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+body.dark-mode .search-box-container {
+    background: rgba(255, 255, 255, 0.06) !important;
+    box-shadow:
+        inset 0 2px 3px rgba(255, 255, 255, 0.08),
+        inset 0 -3px 6px rgba(0, 0, 0, 0.5),
+        0 6px 14px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* Antes el título/descripción de los popups eran inline styles con color
+   fijo (#1c1c1e/#636366): con la tarjeta oscura de arriba quedaban casi
+   invisibles. Ahora que son clases (.popup-title/.popup-desc) es trivial
+   corregirles el contraste acá. */
+body.dark-mode .popup-title {
+    color: #f2f2f7 !important;
+}
+
+body.dark-mode .popup-desc,
+body.dark-mode .popup-meta {
+    color: #a1a1a6 !important;
+}
+
+body.dark-mode .leaflet-container a.leaflet-popup-close-button:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: #fff !important;
+}
+
+body.dark-mode .filter-pill:not(.active) {
+    background: linear-gradient(145deg, #2c2c2e, #1c1c1e) !important;
+    color: var(--text-main, #fff) !important;
+    box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.08),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.45),
+        0 3px 7px rgba(0, 0, 0, 0.3) !important;
+}
+
+body.dark-mode .search-box-container input,
+body.dark-mode .suggestion-info h4,
+body.dark-mode .layer-panel h4,
+body.dark-mode .layer-panel label,
+body.dark-mode .navigation-title-box h3 {
+    color: var(--text-main, #fff) !important;
+}
+
+body.dark-mode .suggestion-info p,
+body.dark-mode .navigation-loading {
+    color: var(--text-sec, #98989f) !important;
+}
+
+body.dark-mode .btn-close-navigation,
+body.dark-mode .btn-toggle-steps {
+    background: var(--bg-muted, #2c2c2e) !important;
+}
+
+body.dark-mode .btn-close-navigation:hover,
+body.dark-mode .btn-toggle-steps:hover {
+    background: #3a3a3c !important;
+}
+
+body.dark-mode .route-alt-pill:not(.active) {
+    background: var(--bg-muted, #2c2c2e) !important;
+    color: var(--text-sec, #98989f) !important;
+}
+
+body.dark-mode .navigation-step-item {
+    background: var(--bg-muted, #2c2c2e) !important;
+    color: var(--text-sec, #98989f) !important;
+}
+
+body.dark-mode .navigation-steps-wrapper.expanded,
+body.dark-mode .route-alt-pills {
+    border-top-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.dark-mode .transit-option-card {
+    background: var(--bg-muted, #2c2c2e) !important;
+}
+
+body.dark-mode .transit-option-title {
+    color: var(--text-main, #fff) !important;
+}

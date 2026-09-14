@@ -67,3 +67,10 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+
+# Backend Python (backend/asistente_ia, backend/recomendaciones,
+# backend/importador_lugares): caches y bases SQLite generadas en runtime,
+# no hace falta versionarlas -se recrean solas al importar/correr el script.
+__pycache__/
+*.pyc
+backend/**/*.db

@@ -1,0 +1,529 @@
+/* ==========================================
+   ESTILOS DE PERFIL - src/styles/_profile.css
+   Vista de perfil de usuario, en dos bloques dentro de .profile-container:
+   .profile-hero (tarjeta de identidad: avatar + nombre + insignia + resumen
+   de actividad) y .profile-menu (las .menu-group de opciones: editar
+   perfil, modo oscuro, instalar app, cerrar sesión). En escritorio
+   (>=1024px, _responsive.css) esos dos bloques pasan a ser las dos columnas
+   de una grilla. El HTML de esta vista se genera dinámicamente vía
+   src/ui/templates.js (getProfileTemplate) y se inyecta en
+   #user-profile-content (ver index.html).
+   ========================================== */
+
+/* Transición suave de colores al alternar modo oscuro (body.dark-mode
+   en _variables.css cambia las variables --bg-*/--text-*) */
+body, html, .app-view, .profile-hero, .menu-group, .profile-container, .profile-badge {
+    transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease !important;
+}
+
+/* Forzamos que la vista del perfil permita scroll vertical completo */
+#view-profile {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+}
+
+/* Envoltorio de página completa (centra .profile-container y garantiza
+   que el fondo cubra toda la altura aunque el contenido sea corto).
+   Capa 1 (grid tipo "mapa de calles"): repeating-linear-gradient en dos
+   direcciones sobre --bg-body — en modo claro son líneas oscuras muy
+   sutiles, en modo oscuro se invierte a líneas blancas sobre negro (ver
+   el override body.dark-mode más abajo). */
+.profile-page-wrapper {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    width: 100% !important;
+    min-height: 100% !important;
+    height: auto !important;
+    overflow-y: visible !important;
+    background-color: var(--bg-body, #f4f4f6) !important;
+    background-image:
+        repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.035) 0px, rgba(0, 0, 0, 0.035) 1px, transparent 1px, transparent 64px),
+        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.035) 0px, rgba(0, 0, 0, 0.035) 1px, transparent 1px, transparent 64px) !important;
+    box-sizing: border-box !important;
+}
+
+/* Columna central del perfil. En escritorio (>=1024px, _responsive.css)
+   pasa a grilla de 2 columnas: cabecera fija a la izquierda + menú a la
+   derecha, en vez de apilado vertical. position:relative + z-index:0 la
+   convierten en el contexto de apilamiento del "mesh gradient" ambiental
+   de acá abajo, para que quede siempre detrás de las tarjetas sin importar
+   qué otro z-index tengan sus hijos. */
+.profile-container {
+    position: relative !important;
+    z-index: 0 !important;
+    width: 100% !important;
+    max-width: 420px !important;
+    margin: 20px auto !important;
+    padding: 20px 16px 150px 16px !important; /* Margen inferior amplio para el scroll */
+    box-sizing: border-box !important;
+    animation: profileFadeIn 0.5s ease both !important;
+}
+
+@keyframes profileFadeIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- FONDO "MESH GRADIENT" CORRENTINO (ambiental, toda la sección) ---
+   Lavado de color suelto detrás de TODA la columna (tarjeta de identidad +
+   menú), no sólo del avatar, para que el glassmorphism de .profile-hero y
+   .menu-group tenga algo vivo por debajo en toda la pestaña, del principio
+   al final (top/bottom:0 en vez de una altura fija con fade). Paleta
+   "atardecer sobre el Paraná": dorado/naranja (sol), magenta/violeta
+   (cielo) y un toque de celeste profundo (la corriente del río). Dos
+   animaciones con duraciones distintas (15s/22s) que nunca calzan justo
+   entre sí, para que el movimiento de los blobs se sienta orgánico y no
+   como un GIF en loop evidente. Es 100% CSS (::before), nada de imágenes
+   ni video. */
+.profile-container::before {
+    content: "" !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: -20px !important;
+    right: -20px !important;
+    bottom: 0 !important;
+    height: auto !important;
+    z-index: -1 !important;
+    background:
+        radial-gradient(38% 45% at 15% 20%, rgba(255, 196, 105, 0.55), transparent 70%),
+        radial-gradient(35% 40% at 85% 15%, rgba(255, 106, 74, 0.5), transparent 70%),
+        radial-gradient(42% 48% at 55% 55%, rgba(217, 79, 140, 0.45), transparent 70%),
+        radial-gradient(38% 42% at 20% 85%, rgba(138, 79, 201, 0.45), transparent 70%),
+        radial-gradient(32% 38% at 90% 90%, rgba(30, 110, 200, 0.4), transparent 70%) !important;
+    filter: blur(70px) saturate(1.3) !important;
+    animation: meshDrift 15s ease-in-out infinite, meshWobble 22s ease-in-out infinite !important;
+    pointer-events: none !important;
+}
+
+@keyframes meshDrift {
+    0%, 100% { background-position: 15% 20%, 85% 15%, 55% 55%, 20% 85%, 90% 90%; }
+    50%      { background-position: 25% 30%, 70% 25%, 45% 45%, 35% 70%, 75% 75%; }
+}
+
+@keyframes meshWobble {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    50%      { transform: scale(1.08) rotate(2deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .profile-container {
+        animation: none !important;
+    }
+    .profile-container::before {
+        animation: none !important;
+    }
+}
+
+/* --- TARJETA DE IDENTIDAD (hero) ---
+   Envuelve cabecera (avatar/nombre/nivel) + resumen de actividad en un
+   único bloque "vidrio esmerilado" para que dejen de sentirse como piezas
+   sueltas. Lleva, además del lavado ambiental de .profile-container::before,
+   un segundo resplandor propio y más concentrado justo detrás del avatar
+   (mismo criterio "mesh gradient" con blobs radiales, pero más chico, más
+   saturado y con blur más corto) para que esa zona sea la más viva de la
+   sección. Es 100% CSS (::before), no depende de ninguna imagen externa;
+   overflow:hidden lo recorta contra las esquinas redondeadas de la tarjeta
+   en vez de dejarlo "sangrar" fuera de ella. */
+.profile-hero {
+    position: relative !important;
+    z-index: 0 !important;
+    overflow: hidden !important;
+    border-radius: 28px !important;
+    background: rgba(255, 255, 255, 0.6) !important;
+    backdrop-filter: blur(16px) saturate(160%) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(160%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    box-shadow: var(--apple-shadow, 0 10px 40px rgba(0, 0, 0, 0.08)) !important;
+    margin-bottom: 18px !important;
+}
+
+.profile-hero::before {
+    content: "" !important;
+    position: absolute !important;
+    top: -30px !important;
+    left: -20px !important;
+    right: -20px !important;
+    height: 210px !important;
+    z-index: -1 !important;
+    background:
+        radial-gradient(60% 75% at 22% 12%, rgba(255, 255, 255, 0.35), transparent 60%),
+        radial-gradient(30% 40% at 88% 78%, rgba(79, 195, 240, 0.4), transparent 70%),
+        radial-gradient(65% 75% at 30% 65%, #ffb347 0%, #ff6b4a 45%, transparent 75%),
+        radial-gradient(65% 75% at 75% 35%, #d94f8c 0%, #8a4fc9 55%, transparent 75%) !important;
+    background-size: 100% 100%, 100% 100%, 220% 220%, 220% 220% !important;
+    filter: blur(28px) saturate(1.3) !important;
+    transform: scale(1.15) !important;
+    animation: correntinoAtardecer 14s ease-in-out infinite, avatarGlowWobble 20s ease-in-out infinite !important;
+    pointer-events: none !important;
+}
+
+@keyframes correntinoAtardecer {
+    0%, 100% { background-position: 22% 12%, 88% 78%, 25% 60%, 80% 30%; }
+    50%      { background-position: 22% 12%, 82% 72%, 45% 70%, 60% 40%; }
+}
+
+@keyframes avatarGlowWobble {
+    0%, 100% { transform: scale(1.15) rotate(0deg); }
+    50%      { transform: scale(1.22) rotate(-2deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .profile-hero::before {
+        animation: none !important;
+    }
+    .avatar-wrapper::before {
+        animation: none !important;
+    }
+}
+
+/* --- CABECERA: avatar + nombre + insignia (dentro de .profile-hero) --- */
+.profile-header {
+    position: relative !important;
+    z-index: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    padding: 28px 24px 20px 24px !important;
+    text-align: center !important;
+}
+
+.avatar-wrapper {
+    position: relative !important;
+    z-index: 0 !important;
+    margin-bottom: 14px !important;
+}
+
+/* Anillo tipo "historia" con los mismos colores del banner, para que el
+   avatar se destaque más sobre el fondo (pedido: sección "más llamativa"). */
+.avatar-wrapper::before {
+    content: "" !important;
+    position: absolute !important;
+    top: -4px !important;
+    left: -4px !important;
+    right: -4px !important;
+    bottom: -4px !important;
+    border-radius: 50% !important;
+    background: conic-gradient(from 180deg, #ffc169, #ff8a5c, #f04f8c, #8a4fc9, #1d3f78, #ffc169) !important;
+    z-index: -1 !important;
+    animation: avatarRingSpin 7s linear infinite !important;
+}
+
+@keyframes avatarRingSpin {
+    to { transform: rotate(360deg); }
+}
+
+.avatar {
+    width: 92px !important;
+    height: 92px !important;
+    border-radius: 50% !important;
+    background: linear-gradient(135deg, #007aff, #00c6ff) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 36px !important;
+    font-weight: 700 !important;
+    color: #fff !important;
+    box-shadow: 0 8px 24px rgba(0, 122, 255, 0.3) !important;
+    text-transform: uppercase !important;
+    border: 3px solid var(--bg-body, #f4f4f6) !important;
+}
+
+/* Botón de cámara superpuesto en la esquina del avatar (reemplaza al viejo
+   punto verde de "en línea", que no reflejaba nada real) para editar la foto
+   sin tener que ir a buscar una fila aparte en el menú. */
+.avatar-edit-badge {
+    position: absolute !important;
+    bottom: 0 !important;
+    right: 0 !important;
+    width: 30px !important;
+    height: 30px !important;
+    border-radius: 50% !important;
+    background: #007aff !important;
+    border: 3px solid var(--bg-body, #f4f4f6) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: #fff !important;
+    font-size: 14px !important;
+    cursor: pointer !important;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2) !important;
+    transition: transform 0.15s ease !important;
+}
+
+.avatar-edit-badge:active {
+    transform: scale(0.9) !important;
+}
+
+.profile-name {
+    margin: 0 0 2px 0 !important;
+    font-size: 25px !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.02em !important;
+    color: var(--text-main, #1c1c1e) !important;
+}
+
+.profile-email {
+    margin: 0 0 10px 0 !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    color: var(--text-sec, #8e8e93) !important;
+}
+
+/* Chip de nivel: usa el token dorado --premium-grad (_variables.css) para
+   que llame más la atención que el badge blanco liso anterior. */
+.profile-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    background: var(--premium-grad, linear-gradient(135deg, #ffd60a, #ff9f0a)) !important;
+    padding: 6px 16px !important;
+    border-radius: 999px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.02em !important;
+    color: #4a3200 !important;
+    border: none !important;
+    box-shadow: 0 6px 16px rgba(255, 159, 10, 0.35) !important;
+}
+
+.badge-star {
+    font-size: 13px !important;
+}
+
+/* --- RESUMEN DE ACTIVIDAD: visitados / favoritos ---
+   Números reales tomados de state.userProfile.visitados y .favoritos (ver
+   src/ui/templates.js), no valores decorativos. Vive dentro de la misma
+   tarjeta que la cabecera (.profile-hero): sólo un separador sutil arriba
+   en vez de ser una tarjeta propia flotando aparte, para que se sienta
+   parte del mismo bloque de identidad y no una pieza suelta. */
+.profile-stats-row {
+    position: relative !important;
+    z-index: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 24px !important;
+    padding: 18px 0 22px 0 !important;
+    border-top: 1px solid var(--apple-glass-border, rgba(0, 0, 0, 0.08)) !important;
+}
+
+.stat-card {
+    flex: 1 1 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 3px !important;
+}
+
+.stat-icon {
+    font-size: 18px !important;
+    color: var(--primary, #007aff) !important;
+    margin-bottom: 1px !important;
+}
+
+.stat-number {
+    font-size: 23px !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.01em !important;
+    background: var(--primary-grad, linear-gradient(135deg, #007aff, #0055ff)) !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    color: transparent !important;
+}
+
+.stat-label {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
+    color: var(--text-sec, #8e8e93) !important;
+}
+
+.stat-divider {
+    width: 1px !important;
+    height: 32px !important;
+    background: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* --- MENÚ DE OPCIONES DEL PERFIL ---
+   .profile-menu agrupa las .menu-group (ej. "Editar perfil", "Modo Oscuro",
+   "Cerrar sesión") como su propia columna/bloque, en paralelo a
+   .profile-hero: en mobile es sólo un contenedor de paso (las tarjetas ya
+   se apilan solas), pero en escritorio (_responsive.css) se convierte en
+   la columna derecha de la grilla. */
+.profile-menu {
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+/* Vidrio esmerilado: blanco semi-transparente + blur, para que el "mesh
+   gradient" de .profile-container::before se siga viendo (atenuado) a
+   través de estas tarjetas en vez de taparlo con blanco sólido. */
+.menu-group {
+    background: rgba(255, 255, 255, 0.6) !important;
+    backdrop-filter: blur(16px) saturate(160%) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(160%) !important;
+    border-radius: 20px !important;
+    margin-bottom: 18px !important;
+    overflow: hidden !important;
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06) !important;
+}
+
+.menu-item {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 14px 16px !important;
+    background: transparent !important;
+    border: none !important;
+    color: var(--text-main, #1c1c1e) !important;
+    cursor: pointer !important;
+    transition: background-color 0.15s ease, transform 0.15s ease !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04) !important;
+    text-align: left !important;
+}
+
+.menu-item:last-child {
+    border-bottom: none !important;
+}
+
+.menu-item:hover {
+    background: rgba(0, 122, 255, 0.04) !important;
+    transform: translateX(2px) !important;
+}
+
+.menu-item:active {
+    background: rgba(0, 122, 255, 0.08) !important;
+}
+
+.icon-box {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 11px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin-right: 14px !important;
+    font-size: 18px !important;
+    flex-shrink: 0 !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05) !important;
+}
+
+.icon-box.blue { background: rgba(0, 122, 255, 0.12) !important; color: #007aff !important; }
+.icon-box.orange { background: rgba(255, 149, 0, 0.12) !important; color: #ff9500 !important; }
+.icon-box.green { background: rgba(52, 199, 89, 0.12) !important; color: #34c759 !important; }
+.icon-box.red { background: rgba(255, 59, 48, 0.12) !important; color: #ff3b30 !important; }
+.icon-box.purple { background: rgba(175, 82, 222, 0.12) !important; color: #af52de !important; }
+
+.menu-text {
+    flex-grow: 1 !important;
+    font-size: 15px !important;
+    font-weight: 500 !important;
+    color: var(--text-main, #1c1c1e) !important;
+    text-align: left !important;
+}
+
+.arrow {
+    color: var(--text-sec, #8e8e93) !important;
+    font-size: 16px !important;
+}
+
+.logout .menu-text {
+    color: #ff3b30 !important;
+    font-weight: 600 !important;
+}
+
+.badge-free {
+    background: #34c759 !important;
+    color: #ffffff !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    padding: 4px 8px !important;
+    border-radius: 6px !important;
+    letter-spacing: 0.5px;
+}
+
+/* --- MODAL "EDITAR NOMBRE" ---
+   Reusa .modal-overlay/.modal-card (src/styles/_components.css); acá sólo se
+   ajusta el layout específico de este modal (centrado, ver templates.js). */
+.edit-profile-card {
+    text-align: center !important;
+}
+
+/* ==========================================
+   MODO OSCURO (premium)
+   var(--apple-glass-bg) en oscuro ya es un gris opaco (#1c1c1e con alpha),
+   se ve más "tarjeta plana" que "vidrio". Acá se aclara a un blanco muy
+   traslúcido sobre el fondo negro de la app para un vidrio esmerilado más
+   real, y se agrega un leve resplandor a los badges/switch para mantener
+   el estilo vibrante pedido (GRATIS, Nivel, Modo Oscuro activado).
+   ========================================== */
+/* Capa 1: patrón de cuadrícula tipo "mapa de calles" sobre el negro puro de
+   --bg-body. repeating-linear-gradient en dos direcciones en vez de una
+   imagen: cero peso extra y se adapta a cualquier tamaño de pantalla sin
+   recortarse ni pixelarse. */
+body.dark-mode .profile-page-wrapper {
+    background-color: #000000 !important;
+    background-image:
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.05) 0px, rgba(255, 255, 255, 0.05) 1px, transparent 1px, transparent 64px),
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0px, rgba(255, 255, 255, 0.05) 1px, transparent 1px, transparent 64px) !important;
+}
+
+/* Capa 2: el mesh-gradient de .profile-container::before ya cubre toda la
+   sección de punta a punta (regla base, arriba); acá solo se recalienta la
+   paleta hacia naranja/coral/magenta, más saturada que el pastel de modo
+   claro, y el blur sube a 100px para el look "aurora" más difuso. */
+body.dark-mode .profile-container::before {
+    background:
+        radial-gradient(45% 40% at 10% 15%, rgba(255, 170, 60, 0.55), transparent 70%),
+        radial-gradient(42% 45% at 92% 25%, rgba(255, 90, 60, 0.5), transparent 70%),
+        radial-gradient(55% 55% at 50% 58%, rgba(217, 60, 110, 0.42), transparent 70%),
+        radial-gradient(38% 42% at 15% 88%, rgba(255, 122, 60, 0.4), transparent 70%),
+        radial-gradient(32% 36% at 88% 92%, rgba(200, 50, 90, 0.35), transparent 70%) !important;
+    filter: blur(100px) saturate(1.4) !important;
+}
+
+/* Capa 3: vidrio esmerilado oscuro (no el blanco traslúcido que usa modo
+   claro) para que las tarjetas se recorten contra el resplandor de atrás
+   en vez de aclararlo. */
+body.dark-mode .profile-hero,
+body.dark-mode .menu-group {
+    background: rgba(30, 30, 30, 0.4) !important;
+    backdrop-filter: blur(12px) saturate(160%) !important;
+    -webkit-backdrop-filter: blur(12px) saturate(160%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5) !important;
+}
+
+body.dark-mode .profile-stats-row {
+    border-top-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+body.dark-mode .stat-divider {
+    background: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.dark-mode .menu-item {
+    border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+body.dark-mode .icon-box {
+    box-shadow: none !important;
+}
+
+body.dark-mode .profile-badge {
+    box-shadow: 0 0 18px rgba(255, 159, 10, 0.55) !important;
+}
+
+body.dark-mode .badge-free {
+    box-shadow: 0 0 14px rgba(52, 199, 89, 0.55) !important;
+}
+
+body.dark-mode .ios-switch.on {
+    box-shadow: 0 0 14px rgba(52, 199, 89, 0.55) !important;
+}

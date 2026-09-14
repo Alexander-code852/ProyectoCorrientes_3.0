@@ -1,81 +1,119 @@
-// src/ui/templates.js
+/* ==========================================
+   PLANTILLAS UI - src/ui/templates.js
+   ========================================== */
+import { escapeHTML } from '../utils/helpers.js';
 
-export const feedCardTemplate = (lugar, isFav, catIcon, colorClass, imgUrl, cardClass, distanciaTxt) => `
-    <div class="${cardClass}" onclick="event.target.closest('.card-fav-btn') ? toggleFavorite('${lugar.nombre}') : abrirFichaNombre('${lugar.nombre}')">
-        <img src="${imgUrl}" loading="lazy" alt="${lugar.nombre}">
-        <div class="card-gradient"></div>
-        <span class="card-badge-cat ${colorClass}">
-            <ion-icon name="${catIcon}"></ion-icon> 
-            ${lugar.categoria.split(' ')[0]}
-        </span>
-        ${distanciaTxt}
-        <button class="card-fav-btn ${isFav ? 'active' : ''}">
-            <ion-icon name="${isFav ? 'heart' : 'heart-outline'}"></ion-icon>
-        </button>
-        <div class="card-info-box">
-            <h3>${lugar.nombre}</h3>
-            <div class="card-actions-mini">
-                <span onclick="event.stopPropagation(); abrirFichaNombre('${lugar.nombre}')">
-                    <ion-icon name="information-circle"></ion-icon> Ver
-                </span>
-                <span onclick="event.stopPropagation(); cambiarTab('map'); setTimeout(()=>window.stateMapFlyTo(${lugar.lat},${lugar.lng}),300)">
-                    <ion-icon name="map"></ion-icon> Mapa
-                </span>
+// userData debe ser la fusión de state.currentUser (Auth: displayName/email) con
+// state.userProfile (Firestore: nombre/avatar/visitados) — este último es el que
+// tiene los datos que el usuario realmente edita, así que sus campos ganan.
+export function getProfileTemplate(userData) {
+    // userInitial usa el nombre SIN escapar (charAt no le importan las
+    // entidades); userName ya escapado es lo que se manda al HTML de abajo,
+    // en texto Y en el atributo value="" del input de editar nombre — ese
+    // segundo caso es el más peligroso de los dos (un nombre con comillas
+    // puede cerrar el atributo e inyectar HTML si no se escapa).
+    const userNameCrudo = userData?.nombre || userData?.displayName || userData?.email?.split('@')[0] || 'Usuario';
+    const userInitial = userNameCrudo.charAt(0).toUpperCase();
+    const userName = escapeHTML(userNameCrudo);
+    const userEmail = escapeHTML(userData?.email || '');
+    const avatarUrl = userData?.avatar || '';
+
+    const visitadosCount = userData?.visitados?.length || 0;
+    const favoritosCount = userData?.favoritos?.length || 0;
+    // Nivel derivado de lugares visitados (real), no un número fijo igual para todos.
+    const nivel = 1 + Math.floor(visitadosCount / 5);
+
+    const avatarStyle = avatarUrl
+        ? `background-image:url('${avatarUrl}'); background-size:cover; background-position:center; color:transparent;`
+        : '';
+
+    // Resumen de actividad: agregar un tercer/cuarto stat (ej. "Reseñas",
+    // "Puntos") es sumar un objeto acá — el markup de abajo no cambia.
+    const stats = [
+        { icon: 'footsteps-outline', value: visitadosCount, label: 'Visitados' },
+        { icon: 'heart-outline', value: favoritosCount, label: 'Favoritos' },
+    ];
+    const statsHtml = stats.map((stat, i) => `
+                        ${i > 0 ? '<div class="stat-divider"></div>' : ''}
+                        <div class="stat-card">
+                            <ion-icon name="${stat.icon}" class="stat-icon"></ion-icon>
+                            <span class="stat-number">${stat.value}</span>
+                            <span class="stat-label">${stat.label}</span>
+                        </div>`).join('');
+
+    return `
+        <div class="profile-page-wrapper">
+            <div class="profile-container">
+
+                <!-- Columna/tarjeta de identidad: avatar + nombre + nivel +
+                     resumen de actividad, todo en un mismo bloque visual en
+                     vez de piezas sueltas. -->
+                <section class="profile-hero">
+                    <div class="profile-header">
+                        <div class="avatar-wrapper">
+                            <div class="avatar" id="user-avatar" style="${avatarStyle}">${avatarUrl ? '' : userInitial}</div>
+                            <label class="avatar-edit-badge" title="Cambiar foto de perfil">
+                                <ion-icon name="camera"></ion-icon>
+                                <input type="file" id="avatar-input" accept="image/*" style="display: none;">
+                            </label>
+                        </div>
+                        <h2 class="profile-name" id="user-name">${userName}</h2>
+                        ${userEmail ? `<p class="profile-email">${userEmail}</p>` : ''}
+                        <span class="profile-badge"><ion-icon name="star" class="badge-star"></ion-icon> Nivel ${nivel}</span>
+                    </div>
+
+                    <div class="profile-stats-row">${statsHtml}
+                    </div>
+                </section>
+
+                <!-- Columna/lista de menú de opciones -->
+                <div class="profile-menu">
+                    <!-- Opciones Principales -->
+                    <div class="menu-group">
+                        <button class="menu-item" id="btn-edit-profile-modal">
+                            <div class="icon-box blue"><ion-icon name="person-outline"></ion-icon></div>
+                            <span class="menu-text">Editar Perfil</span>
+                            <ion-icon name="chevron-forward-outline" class="arrow"></ion-icon>
+                        </button>
+                    </div>
+
+                    <!-- Preferencias del Sistema -->
+                    <div class="menu-group">
+                        <div class="menu-item" id="btn-toggle-dark" style="cursor: pointer;">
+                            <div class="icon-box purple"><ion-icon name="moon-outline"></ion-icon></div>
+                            <span class="menu-text">Modo Oscuro</span>
+                            <div class="ios-switch ${document.body.classList.contains('dark-mode') ? 'on' : ''}" id="dark-mode-switch">
+                                <div class="ios-switch-knob"></div>
+                            </div>
+                        </div>
+                        <button class="menu-item" id="btn-install-app">
+                            <div class="icon-box green"><ion-icon name="cloud-download-outline"></ion-icon></div>
+                            <span class="menu-text">Instalar App</span>
+                            <span class="badge-free">GRATIS</span>
+                        </button>
+                    </div>
+
+                    <!-- Cerrar Sesión -->
+                    <div class="menu-group">
+                        <button class="menu-item logout" id="btn-logout">
+                            <div class="icon-box red"><ion-icon name="log-out-outline"></ion-icon></div>
+                            <span class="menu-text">Cerrar Sesión</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
-`;
 
-export const fichaLugarTemplate = (lugar, isFav, bgStyle, heroHeightStyle, parkingDispoHTML, lineasHTML, audioGuiaHTML, menuHTML) => `
-    <div class="sheet-grabber"></div>
-    <div class="ficha-hero" style="${heroHeightStyle}">
-        ${bgStyle}
-        <button class="btn-back-float" onclick="cerrarFicha()"><ion-icon name="close"></ion-icon></button>
-        <button class="btn-fav-float ${isFav ? 'active' : ''}" onclick="toggleFavorite('${lugar.nombre}')">
-            <ion-icon name="${isFav ? 'heart' : 'heart-outline'}"></ion-icon>
-        </button>
-    </div>
-    <div class="ficha-content">
-        <div class="ficha-header">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span class="tag-cat">${lugar.categoria.split(' ')[0]}</span>
-                ${lugar.destacado ? '<span class="tag-top">⭐ TOP</span>' : ''}
+        <!-- Modal Oculto para Editar Nombre -->
+        <div id="modal-edit-profile" class="modal-overlay">
+            <div class="modal-card edit-profile-card">
+                <h3>Editar Nombre</h3>
+                <input type="text" id="input-nuevo-nombre" value="${userName}">
+                <div class="modal-actions">
+                    <button class="ios-btn-secondary" id="btn-cancelar-editar-perfil">Cancelar</button>
+                    <button class="ios-btn-primary" id="btn-guardar-editar-perfil">Guardar</button>
+                </div>
             </div>
-            <h1>${lugar.nombre}</h1>
-            <p>${lugar.desc || 'Explora este lugar increíble.'}</p>
-            ${audioGuiaHTML}
         </div>
-        
-        ${parkingDispoHTML}
-        ${lineasHTML}
-
-        <div class="action-grid" style="margin-top: 15px;">
-            <button onclick="iniciarRuta('ficha')" class="btn-action primary"><ion-icon name="navigate"></ion-icon> IR AHORA</button>
-            <button onclick="compartirLugar('${lugar.nombre}')" class="btn-action secondary"><ion-icon name="share-social"></ion-icon></button>
-            ${lugar.wp ? `<a href="https://wa.me/${lugar.wp}" target="_blank" class="btn-action whatsapp"><ion-icon name="logo-whatsapp"></ion-icon></a>` : ''}
-        </div>
-        ${menuHTML}
-        <button id="btn-checkin-dynamic" onclick="triggerCheckIn()" class="btn-checkin-big disabled">
-            <ion-icon name="radio"></ion-icon> <span>Ubicando...</span>
-        </button>
-        <input type="file" id="foto-checkin" accept="image/*" capture="environment" style="display:none" onchange="procesarFotoCheckin(this)">
-        <div class="comments-section">
-            <h3>Reseñas</h3>
-            <div class="review-input-box">
-                <input type="text" id="input-review" placeholder="Deja tu opinión...">
-                <button onclick="enviarComentario()"><ion-icon name="send"></ion-icon></button>
-            </div>
-            <div id="lista-comentarios">Cargando...</div>
-        </div>
-    </div>
-`;
-
-export const couponTemplate = (puntosUser, p, puede) => `
-    <div class="coupon-card ${puede ? '' : 'disabled'}">
-        <div class="coupon-left">
-            <span class="coupon-cost">${p.costo} PTS</span>
-            <h3>${p.nombre}</h3>
-        </div>
-        <button class="coupon-btn" onclick="canjearPremio(${p.id})">${puede ? 'CANJEAR' : 'FALTA'}</button>
-    </div>
-`;
+    `;
+}

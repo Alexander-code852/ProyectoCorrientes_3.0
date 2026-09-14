@@ -1,0 +1,486 @@
+/* ==========================================
+   ESTILOS DE LA VISTA JUEGOS (NIÑOS) - src/styles/_juegos.css
+   Pestaña "Rincón de los Peques": cabecera ilustrada + grilla de eventos
+   del día pensados para chicos de 1 a 15 años. Reutiliza la animación
+   @keyframes gradientBG definida en _explore.css.
+   ========================================== */
+
+/* Contenedor de toda la pestaña Juegos, con fondo animado en gradiente
+   (paleta pastel, distinta de la de Explorar) */
+#view-juegos {
+    background: linear-gradient(-45deg, #fff3d6, #ffe0ec, #e0f7ff, #eafff0) !important;
+    background-size: 400% 400% !important;
+    animation: gradientBG 15s ease infinite !important;
+    overflow-y: auto !important;
+    height: 100vh !important; /* Fallback */
+    height: 100dvh !important; /* Alto dinámico: evita saltos con la barra del navegador móvil */
+    width: 100% !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    box-sizing: border-box !important;
+    padding: 20px 16px 130px 16px !important;
+    display: none !important;
+}
+
+#view-juegos.active {
+    display: block !important;
+}
+
+/* Columna central (cabecera + grilla de eventos). En >=768px pasa a
+   grilla de 2/3 columnas vía _responsive.css. */
+.juegos-container {
+    max-width: 480px !important;
+    margin: 0 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 20px !important;
+}
+
+/* --- CABECERA "RINCÓN DE LOS PEQUES" --- */
+.juegos-header {
+    text-align: center !important;
+    padding: 16px 12px 4px 12px !important;
+}
+
+.juegos-header h1 {
+    margin: 0 0 4px 0 !important;
+    font-size: 26px !important;
+    font-weight: 800 !important;
+    color: #1c1c1e !important;
+}
+
+.juegos-header p {
+    margin: 0 !important;
+    font-size: 13px !important;
+    color: #636366 !important;
+    font-weight: 500 !important;
+}
+
+.juegos-edad-badge {
+    display: inline-block !important;
+    margin-top: 10px !important;
+    background: linear-gradient(135deg, #ff9500, #ff2d55) !important;
+    color: #fff !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    padding: 6px 14px !important;
+    border-radius: 20px !important;
+    box-shadow: 0 6px 16px rgba(255, 45, 85, 0.3) !important;
+}
+
+/* --- GRILLA DE EVENTOS DE HOY ---
+   Lista vertical en mobile (una columna); llenada dinámicamente por JS
+   en #juegos-eventos-hoy (ver index.html) a partir de eventos.js/Firestore. */
+.juegos-eventos-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+}
+
+/* Tarjeta individual de un evento (emoji + hora + título + lugar) */
+.juego-evento-card {
+    background: rgba(255, 255, 255, 0.92) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border: 0.5px solid rgba(255, 255, 255, 0.8) !important;
+    border-radius: 20px !important;
+    padding: 14px 16px !important;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.06) !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 14px !important;
+    cursor: pointer !important;
+}
+
+.juego-evento-emoji {
+    font-size: 30px !important;
+    flex-shrink: 0 !important;
+    width: 52px !important;
+    height: 52px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 16px !important;
+    background: linear-gradient(135deg, #ffd60a, #ff9500) !important;
+}
+
+.juego-evento-info {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 3px !important;
+    min-width: 0 !important;
+}
+
+.juego-evento-info .juego-evento-hora {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    color: #ff2d55 !important;
+    text-transform: uppercase !important;
+}
+
+.juego-evento-info .juego-evento-titulo {
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: #1c1c1e !important;
+}
+
+.juego-evento-info .juego-evento-lugar {
+    font-size: 12px !important;
+    color: #8e8e93 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+/* Mensaje de "cargando"/"sin eventos" mientras no hay datos */
+.juegos-empty-msg {
+    text-align: center !important;
+    color: #8e8e93 !important;
+    font-size: 13px !important;
+    background: rgba(255, 255, 255, 0.8) !important;
+    border-radius: 18px !important;
+    padding: 24px 16px !important;
+}
+
+/* --- MINIJUEGOS (Memotest, Trivia, Ta-Te-Ti) ---
+   Carrusel horizontal de "media cards" (imagen de portada + nombre/desc +
+   nivel/calificación) + estilos de los tableros dentro de los modales
+   .modal-overlay/.modal-card (src/styles/_components.css). Lógica en
+   src/juegos/juegosManager.js — el click sigue escuchando en el propio
+   <button data-juego="..."> (el .minijuego-card), así que toda esta
+   reestructuración interna no le rompe nada al JS. */
+
+/* Título "Minijuegos" + link "Ver Todos (N)" en la misma fila. El link es
+   decorativo por ahora (no hay una vista "ver todos los minijuegos"
+   implementada todavía) — cursor:default en vez de pointer para no
+   prometer una acción que no existe. */
+.juegos-section-header {
+    display: flex !important;
+    align-items: baseline !important;
+    justify-content: space-between !important;
+    margin: 4px 4px -8px 4px !important;
+}
+
+.juegos-section-header .explore-section-title {
+    margin: 0 !important;
+}
+
+.juegos-ver-todos {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 2px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: var(--text-sec, #8e8e93) !important;
+    cursor: default !important;
+}
+
+.juegos-ver-todos ion-icon {
+    font-size: 13px !important;
+}
+
+.juegos-minijuegos-scroll {
+    display: flex !important;
+    gap: 16px !important;
+    overflow-x: auto !important;
+    padding: 4px 4px 10px 4px !important;
+    margin: 0 -4px !important;
+    scroll-snap-type: x proximity !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+}
+
+.juegos-minijuegos-scroll::-webkit-scrollbar {
+    display: none !important;
+}
+
+.minijuego-card {
+    flex: 0 0 auto !important;
+    width: 220px !important;
+    scroll-snap-align: start !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border: 0.5px solid rgba(255, 255, 255, 0.8) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1) !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    text-align: left !important;
+    cursor: pointer !important;
+    font-family: inherit !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.minijuego-card:hover {
+    transform: translateY(-3px) !important;
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.14) !important;
+}
+
+.minijuego-card:active {
+    transform: scale(0.98) !important;
+}
+
+/* Parte superior: imagen de portada a todo el ancho, esquinas superiores
+   redondeadas (las inferiores las da .minijuego-card, que recorta con
+   overflow:hidden). aspect-ratio fija en vez de height fija: se adapta
+   sola sea cual sea el tamaño real de la imagen que se termine usando. */
+.minijuego-media {
+    width: 100% !important;
+    aspect-ratio: 16 / 10 !important;
+    overflow: hidden !important;
+    background: var(--bg-muted, #f2f2f7) !important;
+}
+
+.minijuego-img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    display: block !important;
+}
+
+/* Parte inferior: título + descripción + fila de metadatos */
+.minijuego-body {
+    padding: 12px 14px 14px 14px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+}
+
+.minijuego-nombre {
+    margin: 0 !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: #1c1c1e !important;
+    text-align: left !important;
+}
+
+.minijuego-desc {
+    margin: 0 0 6px 0 !important;
+    font-size: 12px !important;
+    color: #8e8e93 !important;
+    text-align: left !important;
+}
+
+/* Nivel/dificultad (izquierda) + estrellas de calificación (derecha),
+   separados del texto de arriba por una línea sutil. */
+.minijuego-meta {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    padding-top: 8px !important;
+    border-top: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+
+.minijuego-nivel {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: var(--text-sec, #8e8e93) !important;
+    white-space: nowrap !important;
+}
+
+.minijuego-rating {
+    display: inline-flex !important;
+    gap: 1px !important;
+    color: #ffb100 !important;
+    font-size: 12px !important;
+    flex-shrink: 0 !important;
+}
+
+.minijuego-rating ion-icon[name="star-outline"] {
+    color: #d1d1d6 !important;
+}
+
+/* Variante ancha del .modal-card genérico, para dejar lugar al tablero */
+.minijuego-modal-card {
+    max-width: 420px !important;
+    position: relative !important;
+}
+
+.minijuego-cerrar {
+    position: absolute !important;
+    top: 14px !important;
+    right: 14px !important;
+    background: rgba(0, 0, 0, 0.06) !important;
+    border: none !important;
+    border-radius: 50% !important;
+    width: 30px !important;
+    height: 30px !important;
+    font-size: 14px !important;
+    color: #1c1c1e !important;
+    cursor: pointer !important;
+}
+
+.minijuego-toolbar {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #48484a !important;
+}
+
+.minijuego-btn-secundario {
+    background: #f2f2f7 !important;
+    border: none !important;
+    border-radius: 10px !important;
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    color: #1c1c1e !important;
+    cursor: pointer !important;
+}
+
+.minijuego-ganaste {
+    text-align: center !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: #1c1c1e !important;
+    background: linear-gradient(135deg, #ffd60a, #ff9500) !important;
+    border-radius: 14px !important;
+    padding: 12px !important;
+    margin: 0 !important;
+}
+
+/* Memotest: grilla de 3 columnas de cartas volteables */
+.memotest-tablero {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+}
+
+.memotest-carta {
+    aspect-ratio: 1 / 1 !important;
+    border-radius: 12px !important;
+    border: none !important;
+    background: linear-gradient(135deg, #5ac8fa, #007aff) !important;
+    font-size: 24px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+}
+
+.memotest-carta.volteada {
+    background: #fff !important;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08) !important;
+}
+
+.memotest-carta.encontrada {
+    background: rgba(52, 199, 89, 0.18) !important;
+}
+
+/* Trivia: pregunta + botones de opciones apilados */
+.trivia-pregunta {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: #1c1c1e !important;
+    margin: 0 !important;
+}
+
+.trivia-opciones {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+}
+
+.trivia-opcion {
+    text-align: left !important;
+    background: #f2f2f7 !important;
+    border: none !important;
+    border-radius: 12px !important;
+    padding: 12px 14px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #1c1c1e !important;
+    cursor: pointer !important;
+}
+
+.trivia-opcion-correcta {
+    background: rgba(52, 199, 89, 0.25) !important;
+}
+
+.trivia-opcion-incorrecta {
+    background: rgba(255, 59, 48, 0.25) !important;
+}
+
+/* Ta-Te-Ti: grilla clásica de 3x3 */
+.tateti-tablero {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+}
+
+.tateti-celda {
+    aspect-ratio: 1 / 1 !important;
+    border-radius: 12px !important;
+    border: none !important;
+    background: #f2f2f7 !important;
+    font-size: 26px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+}
+
+/* ==========================================
+   MODO OSCURO
+   Todo lo de arriba es la paleta pastel de esta pestaña a propósito; acá
+   se redefine cada superficie/texto sólo para body.dark-mode.
+   ========================================== */
+body.dark-mode #view-juegos {
+    background: linear-gradient(-45deg, #2e1f1a, #2e1626, #16213a, #1a2e22) !important;
+}
+
+body.dark-mode .juegos-header h1,
+body.dark-mode .juego-evento-info .juego-evento-titulo,
+body.dark-mode .minijuego-nombre,
+body.dark-mode .minijuego-cerrar,
+body.dark-mode .minijuego-ganaste,
+body.dark-mode .trivia-pregunta {
+    color: var(--text-main, #fff) !important;
+}
+
+body.dark-mode .juegos-header p,
+body.dark-mode .juego-evento-info .juego-evento-lugar,
+body.dark-mode .juegos-empty-msg,
+body.dark-mode .minijuego-desc,
+body.dark-mode .minijuego-toolbar {
+    color: var(--text-sec, #98989f) !important;
+}
+
+body.dark-mode .juego-evento-card,
+body.dark-mode .minijuego-card,
+body.dark-mode .juegos-empty-msg {
+    background: rgba(28, 28, 30, 0.9) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.dark-mode .minijuego-meta {
+    border-top-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+body.dark-mode .minijuego-rating ion-icon[name="star-outline"] {
+    color: #48484a !important;
+}
+
+body.dark-mode .minijuego-btn-secundario,
+body.dark-mode .trivia-opcion:not(.trivia-opcion-correcta):not(.trivia-opcion-incorrecta),
+body.dark-mode .tateti-celda {
+    background: var(--bg-muted, #2c2c2e) !important;
+    color: var(--text-main, #fff) !important;
+}
+
+body.dark-mode .minijuego-cerrar {
+    background: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.dark-mode .memotest-carta.volteada:not(.encontrada) {
+    background: var(--bg-muted, #2c2c2e) !important;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
+}

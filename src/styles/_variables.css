@@ -1,0 +1,58 @@
+/* ==========================================
+   VARIABLES GLOBALES - src/styles/_variables.css
+   Design tokens (colores, superficies "glass" estilo iOS y capas
+   z-index) consumidos por el resto de los parciales vía var(--nombre).
+   Es el único lugar donde se define la paleta: para retocar un color en
+   toda la app, cambiar acá, no en cada componente.
+   ========================================== */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
+
+:root {
+    /* Colores de marca/estado */
+    --primary: #007AFF;
+    --primary-grad: linear-gradient(135deg, #007AFF 0%, #0055FF 100%);
+    --success: #34C759;
+    --success-grad: linear-gradient(135deg, #34C759 0%, #30B34A 100%);
+    --premium: #FFD60A;
+    --premium-grad: linear-gradient(135deg, #FFD60A 0%, #FF9F0A 100%);
+    --danger: #FF3B30;
+
+    /* Superficies y texto (modo claro, valores por defecto) */
+    --bg-body: #F4F4F6;
+    --bg-card: #FFFFFF;
+    /* Relleno "gris sistema" para inputs/chips/tableros (buscadores, chat,
+       textareas, minijuegos): antes estaba pisado a fuego como #F2F2F7 en
+       cada archivo, así que en modo oscuro se quedaba blanco. */
+    --bg-muted: #F2F2F7;
+    --text-main: #1C1C1E;
+    --text-sec: #8E8E93;
+
+    /* Efecto "vidrio esmerilado" estilo iOS usado en barras y tarjetas flotantes */
+    --apple-glass-bg: rgba(255, 255, 255, 0.82);
+    --apple-glass-border: rgba(0, 0, 0, 0.06);
+    --apple-blur: saturate(180%) blur(30px);
+    --apple-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+
+    /* Orden de apilamiento (z-index) de las capas flotantes de la app,
+       de más al fondo a más al frente */
+    --z-map: 1;
+    --z-ui-float: 1000;
+    --z-nav: 6000;
+    --z-chat-btn: 3000;
+    --z-chat-win: 3001;
+    --z-modal: 9000;
+    --z-splash: 10000;
+}
+
+/* Modo oscuro: redefine las mismas variables de superficie/texto;
+   activado agregando la clase .dark-mode a <body> (src/ui/uiManager.js) */
+body.dark-mode {
+    --bg-body: #000000;
+    --bg-card: #1C1C1E;
+    --bg-muted: #2C2C2E;
+    --text-main: #FFFFFF;
+    --text-sec: #98989F;
+    --apple-glass-bg: rgba(28, 28, 30, 0.78);
+    --apple-glass-border: rgba(255, 255, 255, 0.1);
+    --apple-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}

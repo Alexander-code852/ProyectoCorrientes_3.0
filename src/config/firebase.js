@@ -1,42 +1,22 @@
-// firebase.js
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { 
-    collection, getDocs, addDoc, doc, setDoc, getDoc, updateDoc, 
-    query, where, orderBy, limit, serverTimestamp,
-    // NUEVAS FUNCIONES PARA PERSISTENCIA OFFLINE:
-    initializeFirestore, persistentLocalCache, persistentMultipleTabManager
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { 
-    getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
-    onAuthStateChanged, signOut, updateProfile 
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { 
-    getFunctions, httpsCallable 
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
+/* ==========================================
+   CONFIGURACIÓN DE FIREBASE - src/config/firebase.js
+   ========================================== */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// Tu configuración original de Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyBDlli0VXIC9yNy4ChQofBc0KH8c-EYNEY",
-  authDomain: "ruta-correntina.firebaseapp.com",
-  projectId: "ruta-correntina",
-  storageBucket: "ruta-correntina.firebasestorage.app",
-  messagingSenderId: "56680191985",
-  appId: "1:56680191985:web:31c97e7c4e0daee5bd1650",
-  measurementId: "G-P7G3Z655X4"
+    apiKey: "AIzaSyC50z3jZ8R5KkRfyS8zxImDsp5wQzq1FA0",
+    authDomain: "ruta-correntina.firebaseapp.com",
+    projectId: "ruta-correntina",
+    storageBucket: "ruta-correntina.firebasestorage.app",
+    messagingSenderId: "56680191985",
+    appId: "1:56680191985:web:31c97e7c4e0daee5bd1650",
+    measurementId: "G-P7G3Z655X4"
 };
 
 const app = initializeApp(firebaseConfig);
 
-// INICIALIZACIÓN DE FIRESTORE CON CACHÉ OFFLINE ACTIVADO
-const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})
-});
-
-const auth = getAuth(app);
-const functions = getFunctions(app); 
-
-export { 
-    db, auth, functions, httpsCallable, collection, getDocs, addDoc, doc, setDoc, getDoc, updateDoc, 
-    query, where, orderBy, limit, serverTimestamp,
-    createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile 
-};
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export { app };

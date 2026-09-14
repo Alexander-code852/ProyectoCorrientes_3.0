@@ -1,0 +1,31 @@
+/* ==========================================
+   RUTA CORRENTINA - MAIN CSS (Orquestador Global)
+   Único archivo cargado desde index.html; solo importa los parciales,
+   en un orden que importa para la cascada:
+     1. _variables.css   -> design tokens (colores, z-index)
+     2. _base.css        -> reset + layout raíz de la SPA
+     3. _map.css          \
+     4. _explore.css       > estilos por vista (una pestaña cada uno)
+     5. _juegos.css        |
+     6. _profile.css      /
+     7. _components.css  -> piezas compartidas entre vistas (auth, nav,
+                             bottom-sheet, chat, modales, toasts)
+     8. _asistente.css   -> Asistente Local Inteligente (FAB + panel de
+                             búsqueda en lenguaje natural del mapa)
+     9. _responsive.css  -> SIEMPRE AL FINAL: ajusta lo anterior por
+                             breakpoint (tablet/desktop/desktop grande).
+                             Va último para poder sobreescribir con
+                             seguridad las reglas mobile-first de arriba.
+   Para editar un estilo, tocar el parcial correspondiente, nunca este
+   archivo (ver CLAUDE.md).
+   ========================================== */
+
+@import './_variables.css';
+@import './_base.css';
+@import './_map.css';
+@import './_explore.css';
+@import './_juegos.css';
+@import './_profile.css';
+@import './_components.css';
+@import './_asistente.css';
+@import './_responsive.css';

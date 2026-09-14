@@ -1,142 +1,96 @@
-// src/map/mapManager.js
-
-import { CONFIG } from '../core/constants.js';
+/* ==========================================
+   GESTOR DE MAPA - src/map/mapManager.js
+   ========================================== */
 import { state } from '../core/store.js';
-import { showToast, getDistance } from '../utils/helpers.js';
+import { initAddPlaceOnClick } from './addPlaceManager.js';
+
+let userMarker = null;
+let watchId = null;
 
 export function initMap() {
-    state.map = L.map('map', { zoomControl: false, attributionControl: false }).setView(CONFIG.defaultCenter, 14);
-    updateMapTiles();
-    
-    state.map.on('load', () => {
-        const loader = document.getElementById('map-loader');
-        if(loader) {
-            loader.style.opacity = '0';
-            setTimeout(() => loader.style.display = 'none', 300);
-        }
-    });
-    
-    state.markersCluster = L.markerClusterGroup({ 
-        showCoverageOnHover: false, maxClusterRadius: 40,
-        iconCreateFunction: function(cluster) {
-            return L.divIcon({ html: `<div>${cluster.getChildCount()}</div>`, className: 'custom-cluster', iconSize: [40, 40] });
-        }
-    });
-    state.map.addLayer(state.markersCluster);
-    setTimeout(() => { state.map.fire('load'); state.map.invalidateSize(); }, 800);
-}
+    const mapElement = document.getElementById("map");
+    if (!mapElement || typeof L === "undefined") return;
 
-export function updateMapTiles() {
-    const isDark = document.body.classList.contains('dark-mode');
-    const url = isDark ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-    state.map.eachLayer(l => { if(l instanceof L.TileLayer) state.map.removeLayer(l); });
-    L.tileLayer(url, { maxZoom: 19 }).addTo(state.map);
-}
+    // Inicializar el mapa centrado en Corrientes Capital
+    state.map = L.map('map', { zoomControl: false }).setView([-27.4692, -58.8306], 14);
 
-export function renderMarkers(list) { 
-    state.markersCluster.clearLayers(); 
-    list.forEach(l => { 
-        let baseCat = l.categoria.split(' ')[0];
-        if(baseCat === 'museo' || baseCat === 'paseos') baseCat = 'turismo';
-        if(state.activeLayers[baseCat] === false) return;
-
-        let iconClass = 'location-outline'; let colorClass = baseCat;
-        if(l.categoria.includes('turismo') || l.categoria.includes('museo')) iconClass = 'camera';
-        if(l.categoria.includes('comida') || l.categoria.includes('gastro')) iconClass = 'restaurant';
-        if(l.categoria.includes('playa')) iconClass = 'umbrella';
-        if(l.categoria.includes('estacionamiento')) { iconClass = 'car'; colorClass = 'gray'; }
-        if(l.categoria.includes('parada')) { iconClass = 'bus'; colorClass = 'bus'; }
-        if(l.categoria.includes('reportes')) { iconClass = 'warning'; colorClass = 'report'; }
-
-        const customHtml = `<div class="pin-head ${colorClass}"><ion-icon name="${iconClass}"></ion-icon></div>`;
-        const icon = L.divIcon({ className: `custom-pin`, html: customHtml, iconSize:[32,32], iconAnchor:[16,16] }); 
-        const marker = L.marker([l.lat,l.lng],{icon});
-        
-        // Conexión con UI de script.js
-        marker.on('click', () => window.abrirFicha(l));
-        state.markersCluster.addLayer(marker); 
-    }); 
-}
-
-export function iniciarGPS() { 
-    if(navigator.geolocation) {
-        navigator.geolocation.watchPosition(p => { 
-            state.userCoords = { lat: p.coords.latitude, lng: p.coords.longitude }; 
-            if(!state.userMarker) {
-                const htmlIcon = `<div class="user-dir-cone"></div>`;
-                state.userMarker = L.marker([state.userCoords.lat, state.userCoords.lng], { icon: L.divIcon({className:'user-dot', html: htmlIcon, iconSize: [18,18]}) }).addTo(state.map);
-            } else {
-                state.userMarker.setLatLng([state.userCoords.lat, state.userCoords.lng]);
-            }
-            if(state.isNavigating) state.map.panTo([state.userCoords.lat, state.userCoords.lng], {animate: true, duration: 1});
-            
-            if(state.alertaParadaActiva) {
-                const distParada = getDistance(state.userCoords.lat, state.userCoords.lng, state.alertaParadaActiva.lat, state.alertaParadaActiva.lng);
-                if(distParada <= 150) {
-                    showToast(`🚨 ¡Estás a pocos metros de ${state.alertaParadaActiva.nombre}!`);
-                    if(navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
-                    state.alertaParadaActiva = null; 
-                }
-            }
-            if(window.actualizarBotonCheckin) window.actualizarBotonCheckin(); 
-        }, (err) => { 
-            let msg = "⚠️ No se pudo obtener tu ubicación.";
-            if (err.code === 1) msg = "⚠️ Permiso GPS denegado. Revísalo en tu navegador.";
-            if (err.code === 2) msg = "⚠️ Señal GPS no disponible en este momento.";
-            if (err.code === 3) msg = "⚠️ Tiempo de espera agotado buscando señal.";
-            showToast(msg);
-        }, CONFIG.gpsOptions); 
-    } else { showToast("⚠️ Tu dispositivo no soporta GPS."); }
-}
-
-export function centrarMapaUsuario() {
-    if(state.userCoords) {
-        state.map.flyTo([state.userCoords.lat, state.userCoords.lng], 16, { duration: 1.5 });
-        showToast("📍 Estás aquí");
-    } else {
-        showToast("📡 Buscando señal GPS...");
-        iniciarGPS();
-    }
-}
-
-export function iniciarRuta(destinoParam) {
-    let destinoLatLng;
-    if(destinoParam === 'ficha' && state.currentPlace) {
-        destinoLatLng = L.latLng(state.currentPlace.lat, state.currentPlace.lng);
-        window.cerrarFicha();
-    } else if (destinoParam === 'historica') destinoLatLng = L.latLng(-27.463049,-58.839644); 
-    else if (destinoParam === 'costanera') destinoLatLng = L.latLng(-27.477179,-58.855176);
-
-    if(!destinoLatLng) return showToast("⚠️ Destino no válido");
-    if(!state.userCoords) return showToast("⚠️ Esperando GPS...");
-
-    if(state.routingControl) state.map.removeControl(state.routingControl);
-    showToast("🚗 Calculando ruta...");
-    
-    state.routingControl = L.Routing.control({
-        waypoints: [ L.latLng(state.userCoords.lat, state.userCoords.lng), destinoLatLng ],
-        routeWhileDragging: false, addWaypoints: false, showAlternatives: false,
-        lineOptions: { styles: [{color: '#007AFF', opacity: 0.8, weight: 6}] },
-        createMarker: () => null, language: 'es'
+    // Capa de mapa base (OpenStreetMap)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors'
     }).addTo(state.map);
 
-    state.routingControl.on('routesfound', e => {
-        const s = e.routes[0].summary;
-        document.getElementById('nav-time').innerText = Math.round(s.totalTime/60) + " min";
-        document.getElementById('nav-dist').innerText = (s.totalDistance/1000).toFixed(1) + " km";
-        document.getElementById('nav-ui-bottom').classList.add('active');
-        state.isNavigating = true;
-        state.map.flyTo([state.userCoords.lat, state.userCoords.lng], 17);
+    // Activar la funcionalidad de agregar lugares al hacer clic en el mapa
+    initAddPlaceOnClick();
+
+    // La barra superior (buscador + pills de filtro) es hermana de #map, así que
+    // vive en un contexto de apilamiento distinto al del popup de Leaflet: por más
+    // que el pane de popups tenga z-index alto, nunca puede superar a un elemento
+    // fuera de #map (el z-index de #map "encierra" todo lo de adentro). La única
+    // forma real de que el popup quede siempre arriba es ocultar la barra mientras
+    // haya un popup abierto, igual que ya se hace con la UI durante la navegación.
+    state.map.on('popupopen', () => {
+        document.querySelector('.map-top-bar')?.style.setProperty('display', 'none', 'important');
+    });
+    state.map.on('popupclose', () => {
+        document.querySelector('.map-top-bar')?.style.removeProperty('display');
     });
 
-    window.cambiarTab('map');
+    // Configurar botón GPS si existe
+    const btnGps = document.getElementById("btn-gps");
+    if (btnGps) {
+        btnGps.addEventListener("click", () => {
+            iniciarGPS();
+        });
+    }
 }
 
-export function finalizarViaje() {
-    if(state.routingControl) {
-        state.map.removeControl(state.routingControl);
-        state.routingControl = null;
+export function iniciarGPS() {
+    if (!navigator.geolocation || !state.map) return;
+
+    // Obtener la posición inicial una vez
+    navigator.geolocation.getCurrentPosition((position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        state.map.setView([lat, lng], 16);
+        actualizarMarcadorUsuario(lat, lng);
+    }, (error) => {
+        console.error("Error al obtener la ubicación GPS inicial:", error);
+    }, { enableHighAccuracy: true });
+
+    // Rastrear posición en tiempo real si el navegador lo soporta
+    if (watchId === null) {
+        watchId = navigator.geolocation.watchPosition((position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            actualizarMarcadorUsuario(lat, lng);
+        }, (error) => {
+            console.error("Error en el seguimiento GPS:", error);
+        }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 });
     }
-    document.getElementById('nav-ui-bottom').classList.remove('active');
-    state.isNavigating = false;
+}
+
+function actualizarMarcadorUsuario(lat, lng) {
+    if (!state.map) return;
+
+    // Mantenemos siempre en el store la última posición real conocida del usuario
+    state.userCoords = { lat, lng };
+
+    if (userMarker) {
+        userMarker.setLatLng([lat, lng]);
+    } else {
+        // Crear un marcador personalizado para la posición actual del usuario
+        const userIcon = L.divIcon({
+            className: 'user-gps-marker',
+            html: `
+                <div class="user-gps-pulse"></div>
+                <div class="user-gps-dot"></div>
+            `,
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+        });
+
+        userMarker = L.marker([lat, lng], { icon: userIcon, isUserLocation: true, zIndexOffset: 1000 }).addTo(state.map);
+    }
 }

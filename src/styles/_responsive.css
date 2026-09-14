@@ -1,0 +1,341 @@
+/* ==========================================
+   RESPONSIVE - src/styles/_responsive.css
+   Mobile-first: los estilos base (sin media query, en el resto de los
+   parciales) son el diseño para celulares. Acá solo se agregan/cambian
+   reglas a partir de ciertos anchos/altos de viewport:
+     - max-width 380px   -> celulares muy angostos (achica paddings/fuentes)
+     - min-width 768px   -> tablet chica / tablet portrait (grillas de 2 col.)
+     - min-width 1024px  -> desktop / tablet landscape grande (paneles
+                             laterales en vez de barras superiores/inferiores)
+     - min-width 1440px  -> desktop grande (más columnas, paneles más anchos)
+     - max-height (landscape) -> celular acostado con poca altura (achica
+                             paneles flotantes para que no se corten)
+   En pantallas anchas la disposición de varios bloques cambia de verdad
+   (no solo se agranda): la barra del mapa pasa a panel lateral, la ficha
+   de lugar pasa a panel lateral derecho, y los feeds pasan a grilla.
+   ========================================== */
+
+/* -----------------------------------
+   CELULAR MUY ANGOSTO (<= 380px)
+   Ej: iPhone SE 1ª gen, Android chicos (320-360px de ancho). Reduce
+   paddings/tamaños de fuente para que nada se sienta apretado ni corte
+   texto, sin cambiar la disposición (sigue siendo una sola columna).
+----------------------------------- */
+@media (max-width: 380px) {
+
+    /* Barra superior del mapa: buscador y pastillas de filtro más compactos */
+    .search-box-container {
+        padding: 13px 16px !important;
+    }
+
+    .filter-pill {
+        padding: 10px 14px !important;
+        font-size: 13px !important;
+    }
+
+    .map-suggestion-card {
+        padding: 12px 14px !important;
+    }
+
+    /* Explorar: tarjetas de categoría y de evento más angostas */
+    .category-card {
+        width: 112px !important;
+        height: 84px !important;
+    }
+
+    .event-mini-card {
+        min-width: 170px !important;
+    }
+
+    .feed-post-card {
+        width: 190px !important;
+    }
+
+    /* Juegos: título de cabecera más chico para no ocupar tanto alto */
+    .juegos-header h1 {
+        font-size: 22px !important;
+    }
+
+    /* Tarjetas de auth/modal: menos padding lateral para dar más aire al contenido */
+    .auth-card,
+    .modal-card {
+        padding: 20px 16px !important;
+    }
+
+    /* Perfil: avatar levemente más chico */
+    .avatar {
+        width: 72px !important;
+        height: 72px !important;
+        font-size: 30px !important;
+    }
+}
+
+/* -----------------------------------
+   CELULAR EN HORIZONTAL / POCA ALTURA (<= 560px de alto)
+   Los paneles flotantes (chat, navegación, ficha de lugar) están
+   pensados para un celular parado; acostado (o con teclado abierto) la
+   altura disponible baja mucho y pueden quedar cortados contra los
+   bordes de la pantalla. Acá se los achica para que siempre quepan.
+----------------------------------- */
+@media (max-height: 560px) {
+
+    /* La tarjeta de navegación gana su propio scroll interno en vez de
+       desbordar hacia arriba de la pantalla cuando el acordeón de pasos
+       está expandido. */
+    .navigation-card {
+        max-height: calc(100vh - 130px) !important;
+        max-height: calc(100dvh - 130px) !important;
+        overflow-y: auto !important;
+    }
+
+    .navigation-steps-wrapper.expanded {
+        max-height: 120px !important;
+    }
+
+    /* Chat: un poco más bajo y pegado al borde inferior */
+    .chat-widget {
+        bottom: 70px !important;
+        max-height: 60vh !important;
+    }
+
+    /* Ficha del lugar: usa casi toda la altura disponible en vez del 80% fijo */
+    .bottom-sheet {
+        height: 92vh !important;
+        height: 92dvh !important;
+    }
+}
+
+/* -----------------------------------
+   TABLET (>= 768px)
+   Cubre tanto tablets chicas en horizontal como tablets grandes (ej.
+   iPad) en vertical: el feed y la grilla de juegos pasan de una columna
+   a dos, y los paneles flotantes del mapa se agrandan levemente.
+----------------------------------- */
+@media (min-width: 768px) {
+
+    /* Explorar: de columna única a grilla de 2 columnas.
+       Buscador, historias, título y slider de eventos ocupan todo el ancho. */
+    .feed-container {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        align-items: start !important;
+        max-width: 760px !important;
+        gap: 20px 24px !important;
+    }
+
+    .explore-search-box,
+    .explore-stories-users,
+    .explore-categories,
+    .explore-section-title,
+    .events-slider,
+    .rutas-tematicas-scroll,
+    .feed-grid-community {
+        grid-column: 1 / -1 !important;
+    }
+
+    /* Juegos: de lista vertical a grilla de 2 columnas */
+    .juegos-container {
+        max-width: 760px !important;
+    }
+
+    .juegos-eventos-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 14px !important;
+    }
+
+    /* Barra superior del mapa: más ancha, con más aire para mouse, y las
+       pastillas ya no necesitan el scroll horizontal de mobile — a este
+       ancho entran envolviendo en 1-2 filas prolijas (flex-wrap), que es
+       justo el espacio de sobra que no había en mobile. Esto es DISTINTO
+       de la regla de >=1024px (ver más abajo), donde el panel pasa a ser
+       una columna angosta lateral: ahí SÍ conviene mantener el scroll
+       horizontal (envolver en una columna de 380px vuelve a apilar muchas
+       filas y tapa el mapa — el bug que ya se corrigió una vez). */
+    .map-top-bar {
+        max-width: 560px !important;
+        padding: 18px !important;
+    }
+
+    .search-box-container {
+        padding: 18px 22px !important;
+    }
+
+    .filter-pills-container {
+        flex-wrap: wrap !important;
+        overflow-x: visible !important;
+    }
+
+    .filter-pill {
+        padding: 13px 20px !important;
+        font-size: 15px !important;
+    }
+
+    /* Ficha del lugar: sheet más angosto y centrado, no a todo el ancho */
+    .bottom-sheet {
+        width: 80% !important;
+        left: 10% !important;
+        border-radius: 28px 28px 0 0 !important;
+    }
+
+    /* Perfil: contenedor más ancho */
+    .profile-container {
+        max-width: 620px !important;
+    }
+}
+
+/* -----------------------------------
+   DESKTOP (>= 1024px)
+----------------------------------- */
+@media (min-width: 1024px) {
+
+    /* Explorar: 3 columnas */
+    .feed-container {
+        grid-template-columns: repeat(3, 1fr) !important;
+        max-width: 1180px !important;
+        gap: 24px 28px !important;
+    }
+
+    /* Juegos: 3 columnas */
+    .juegos-container {
+        max-width: 1000px !important;
+    }
+
+    .juegos-eventos-grid {
+        grid-template-columns: repeat(3, 1fr) !important;
+    }
+
+    /* --- MAPA: la barra superior se convierte en panel lateral izquierdo ---
+       transform:none anula el translateX(-50%) del centrado mobile/tablet
+       (_map.css); si no, el panel quedaría corrido a la izquierda de donde
+       debería (left:20px ya no representa el borde izquierdo del panel).
+       height:auto + max-height (en vez de bottom:20 fijo) es a propósito:
+       con bottom:20 el panel se estiraba a lo alto de toda la pantalla, y
+       ahora que .map-top-bar ES el panel de vidrio visible (antes era
+       transparente), esa altura forzada se veía como una plancha de vidrio
+       vacía enorme debajo del buscador/pastillas. Con height:auto el panel
+       se ajusta a su contenido real; max-height + overflow-y siguen
+       permitiendo que crezca y scrollee si algún día tiene mucho más
+       contenido (ej. resultados de búsqueda largos). */
+    .map-top-bar {
+        top: 20px !important;
+        left: 20px !important;
+        right: auto !important;
+        bottom: auto !important;
+        max-height: calc(100vh - 40px) !important;
+        max-height: calc(100dvh - 40px) !important;
+        height: auto !important;
+        transform: none !important;
+        width: 380px !important;
+        max-width: 380px !important;
+        margin: 0 !important;
+        justify-content: flex-start !important;
+        overflow-y: auto !important;
+        scrollbar-width: none !important;
+    }
+
+    .map-top-bar::-webkit-scrollbar {
+        display: none !important;
+    }
+
+    /* Las pastillas de filtro siguen en una sola fila con scroll horizontal
+       incluso acá (a diferencia de la regla de tablet un poco más arriba):
+       envolverlas en grilla dentro del panel angosto (380px) las hacía
+       ocupar varias filas y tapar el mapa — el bug que ya se corrigió una
+       vez y esta regla evita que "min-width:768px" lo reintroduzca acá. */
+    .filter-pills-container {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+    }
+
+    /* Botonera flotante y chat FAB, reubicados para no chocar con el panel lateral */
+    .map-floating-actions {
+        right: 24px !important;
+        bottom: 120px !important;
+    }
+
+    .chat-float-btn {
+        left: 24px !important;
+        bottom: 20px !important;
+    }
+
+    /* --- FICHA DE LUGAR: pasa de bottom-sheet a panel lateral derecho ---
+       "bottom" queda por encima de la barra inferior de navegación para
+       que el panel nunca le tape la esquina cuando ambos están visibles. */
+    .bottom-sheet {
+        top: 20px !important;
+        bottom: 110px !important;
+        left: auto !important;
+        right: -440px !important;
+        width: 420px !important;
+        height: auto !important;
+        max-height: none !important;
+        border-radius: 24px !important;
+        box-shadow: -10px 0 40px rgba(0, 0, 0, 0.18) !important;
+        transition: right 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+    }
+
+    .bottom-sheet.active {
+        right: 20px !important;
+    }
+
+    /* --- CHAT IA: widget más grande, reubicado abajo a la izquierda --- */
+    .chat-widget {
+        left: 24px !important;
+        bottom: 90px !important;
+        width: 380px !important;
+        max-width: 380px !important;
+        height: 500px !important;
+        max-height: 70vh !important;
+    }
+
+    /* --- BARRA INFERIOR: un poco más ancha, sigue centrada abajo --- */
+    .bottom-nav {
+        max-width: 460px !important;
+        padding: 14px 26px !important;
+    }
+
+    /* --- PERFIL: tarjeta de identidad fija a la izquierda, menú en columna
+       derecha. Ambas columnas arrancan alineadas arriba (align-items: start
+       + .profile-hero pegado con "sticky top" en vez del centrado vertical
+       de antes) para que el espaciado se sienta parejo y estructurado en
+       vez de que la cabecera flote centrada mientras el menú arranca arriba. */
+    .profile-container {
+        max-width: 900px !important;
+        display: grid !important;
+        grid-template-columns: 300px 1fr !important;
+        align-items: start !important;
+        gap: 24px !important;
+    }
+
+    .profile-hero {
+        grid-column: 1 !important;
+        position: sticky !important;
+        top: 24px !important;
+        margin-bottom: 0 !important;
+    }
+
+    .profile-menu {
+        grid-column: 2 !important;
+    }
+}
+
+/* -----------------------------------
+   DESKTOP GRANDE (>= 1440px)
+----------------------------------- */
+@media (min-width: 1440px) {
+    .feed-container {
+        grid-template-columns: repeat(4, 1fr) !important;
+        max-width: 1500px !important;
+    }
+
+    .map-top-bar {
+        width: 420px !important;
+        max-width: 420px !important;
+    }
+
+    .bottom-sheet {
+        width: 460px !important;
+        right: -480px !important;
+    }
+}
