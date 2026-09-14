@@ -200,16 +200,61 @@
                  toqué. Los de estacionamiento y "Vista satelital" sí están
                  cableados de verdad, ver src/ui/events.js +
                  src/map/markers/estacionamientoMarkers.js /
-                 src/map/mapManager.js (alternarVistaSatelital). -->
+                 src/map/mapManager.js (alternarVistaSatelital).
+
+                 Cada opción es un .layer-option: el <input> real sigue
+                 siendo el mismo checkbox de siempre (misma clase
+                 .layer-checkbox y data-layer, sin tocar events.js), solo
+                 que ahora está visualmente oculto y el "switch" que se ve
+                 es puro CSS (.layer-toggle-switch), animado vía el
+                 selector :checked ~ .layer-toggle-switch en _map.css — el
+                 <input> tiene que ir ANTES en el HTML para que ese
+                 selector de hermanos funcione. -->
             <div id="layer-panel" class="layer-panel hidden">
                 <h4>Capas del Mapa</h4>
-                <label><input type="checkbox" data-layer="satelital" class="layer-checkbox"> 🛰️ Vista satelital</label>
+
+                <div class="layer-group">
+                    <label class="layer-option">
+                        <input type="checkbox" data-layer="satelital" class="layer-checkbox">
+                        <svg class="layer-option-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 7 9 3 5 7l4 4"></path><path d="m17 11 4 4-4 4-4-4"></path><path d="m8 12 4 4 6-6-4-4Z"></path><path d="M16 8 19.5 4.5"></path><path d="M9 21a6 6 0 0 0-6-6"></path></svg>
+                        <span class="layer-option-text">Vista satelital</span>
+                        <span class="layer-toggle-switch" aria-hidden="true"><span class="layer-toggle-thumb"></span></span>
+                    </label>
+                </div>
+
                 <hr class="layer-panel-divider">
-                <label><input type="checkbox" data-layer="calor" class="layer-checkbox"> Mapa de calor</label>
-                <label><input type="checkbox" data-layer="trafico" class="layer-checkbox"> Tráfico en vivo</label>
+
+                <div class="layer-group">
+                    <label class="layer-option">
+                        <input type="checkbox" data-layer="calor" class="layer-checkbox">
+                        <svg class="layer-option-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"></path></svg>
+                        <span class="layer-option-text">Mapa de calor</span>
+                        <span class="layer-toggle-switch" aria-hidden="true"><span class="layer-toggle-thumb"></span></span>
+                    </label>
+                    <label class="layer-option">
+                        <input type="checkbox" data-layer="trafico" class="layer-checkbox">
+                        <svg class="layer-option-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="4"></rect><circle cx="12" cy="7" r="1.3" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"></circle><circle cx="12" cy="17" r="1.3" fill="currentColor" stroke="none"></circle></svg>
+                        <span class="layer-option-text">Tráfico en vivo</span>
+                        <span class="layer-toggle-switch" aria-hidden="true"><span class="layer-toggle-thumb"></span></span>
+                    </label>
+                </div>
+
                 <hr class="layer-panel-divider">
-                <label><input type="checkbox" data-layer="estacionamiento-moto" class="layer-checkbox"> 🛵 Estacionamiento para motos</label>
-                <label><input type="checkbox" data-layer="estacionamiento-auto" class="layer-checkbox"> 🅿️ Estacionamiento para autos</label>
+
+                <div class="layer-group">
+                    <label class="layer-option">
+                        <input type="checkbox" data-layer="estacionamiento-moto" class="layer-checkbox">
+                        <svg class="layer-option-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="17" r="3"></circle><circle cx="19" cy="17" r="3"></circle><path d="M5 17 9 8h4l2 4h4"></path><path d="m9 8-2-3"></path></svg>
+                        <span class="layer-option-text">Estacionamiento para motos</span>
+                        <span class="layer-toggle-switch" aria-hidden="true"><span class="layer-toggle-thumb"></span></span>
+                    </label>
+                    <label class="layer-option">
+                        <input type="checkbox" data-layer="estacionamiento-auto" class="layer-checkbox">
+                        <svg class="layer-option-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"></rect><path d="M9 16V8h4a3 3 0 0 1 0 6H9"></path></svg>
+                        <span class="layer-option-text">Estacionamiento para autos</span>
+                        <span class="layer-toggle-switch" aria-hidden="true"><span class="layer-toggle-thumb"></span></span>
+                    </label>
+                </div>
             </div>
 
             <!-- Botonera flotante lateral: centrar GPS / alternar capas / reportar

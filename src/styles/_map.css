@@ -379,23 +379,27 @@
 
 /* --- PANEL DE CAPAS ---
    Se despliega junto al botón de capas (#btn-layer-toggle) para activar
-   overlays del mapa (calor, tráfico). Oculto por defecto vía .hidden. */
+   overlays del mapa (calor, tráfico, satelital, estacionamientos). Oculto
+   por defecto vía .hidden. Glassmorphism oscuro fijo (no depende de
+   body.dark-mode) -mismo criterio que .map-floating-actions: es un control
+   flotante sobre el mapa, necesita contraste parejo sobre tiles de
+   cualquier color, no sobre el fondo de la app. */
 .layer-panel {
     position: absolute !important;
     right: 76px !important;
     bottom: 195px !important;
-    width: 220px !important;
-    background: rgba(255, 255, 255, 0.95) !important;
-    backdrop-filter: blur(20px) !important;
-    -webkit-backdrop-filter: blur(20px) !important;
-    padding: 16px !important;
+    width: 240px !important;
+    background: rgba(30, 30, 30, 0.85) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    padding: 20px !important;
     border-radius: 20px !important;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12) !important;
-    border: 0.5px solid rgba(0, 0, 0, 0.08) !important;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
     z-index: 1005 !important;
     display: flex !important;
     flex-direction: column !important;
-    gap: 12px !important;
+    gap: 16px !important;
 }
 
 .layer-panel.hidden {
@@ -403,31 +407,108 @@
 }
 
 .layer-panel h4 {
-    margin: 0 0 4px 0 !important;
-    font-size: 14px !important;
-    font-weight: 700 !important;
-    color: #1c1c1e !important;
+    margin: 0 !important;
+    font-size: 15px !important;
+    font-weight: 500 !important;
+    color: #fff !important;
 }
 
-.layer-panel label {
-    font-size: 13px !important;
-    color: #1c1c1e !important;
+/* Agrupa visualmente cada bloque de opciones entre separadores (vista del
+   mapa / capas de datos / estacionamientos) -gap generoso entre filas para
+   que cada fila sea fácil de tocar en mobile. */
+.layer-group {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+}
+
+.layer-option {
     display: flex !important;
     align-items: center !important;
-    gap: 10px !important;
+    gap: 12px !important;
     cursor: pointer !important;
+}
+
+/* El checkbox real sigue existiendo y sigue siendo lo que events.js
+   escucha (.layer-checkbox, data-layer) -solo se oculta visualmente, nunca
+   con display:none (eso le sacaría el foco por teclado). El switch que se
+   ve es .layer-toggle-switch, un hermano posterior en el HTML, animado
+   por los selectores :checked de abajo. */
+.layer-checkbox {
+    position: absolute !important;
+    opacity: 0 !important;
+    width: 1px !important;
+    height: 1px !important;
+}
+
+.layer-option-icon {
+    width: 18px !important;
+    height: 18px !important;
+    flex-shrink: 0 !important;
+    color: rgba(255, 255, 255, 0.5) !important;
+    transition: color 0.2s ease !important;
+}
+
+.layer-option-text {
+    flex: 1 !important;
+    font-size: 14px !important;
+    font-weight: 400 !important;
+    color: #e0e0e0 !important;
+    transition: color 0.2s ease !important;
+}
+
+/* --- Toggle switch (reemplaza al checkbox nativo) --- */
+.layer-toggle-switch {
+    position: relative !important;
+    flex-shrink: 0 !important;
+    width: 40px !important;
+    height: 24px !important;
+    border-radius: 999px !important;
+    background: rgba(255, 255, 255, 0.16) !important;
+    transition: background-color 0.25s ease !important;
+}
+
+.layer-toggle-thumb {
+    position: absolute !important;
+    top: 2px !important;
+    left: 2px !important;
+    width: 20px !important;
+    height: 20px !important;
+    border-radius: 50% !important;
+    background: #fff !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.layer-checkbox:checked ~ .layer-toggle-switch {
+    background: #0a84ff !important;
+}
+
+.layer-checkbox:checked ~ .layer-toggle-switch .layer-toggle-thumb {
+    transform: translateX(16px) !important;
+}
+
+.layer-checkbox:checked ~ .layer-option-icon {
+    color: #0a84ff !important;
+}
+
+.layer-checkbox:checked ~ .layer-option-text {
+    color: #fff !important;
     font-weight: 500 !important;
+}
+
+/* Anillo de foco visible para navegación por teclado (el checkbox sigue
+   siendo focuseable aunque esté oculto -ver .layer-checkbox arriba-). */
+.layer-checkbox:focus-visible ~ .layer-toggle-switch {
+    outline: 2px solid #0a84ff !important;
+    outline-offset: 2px !important;
 }
 
 .layer-panel-divider {
     width: 100% !important;
     border: none !important;
-    border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
     margin: 0 !important;
-}
-
-body.dark-mode .layer-panel-divider {
-    border-top-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 .leaflet-control-zoom {
@@ -986,8 +1067,6 @@ body.dark-mode .layer-panel-divider {
    falta para no pisar el estado activo (ej. .filter-pill.active en azul),
    porque "body.dark-mode .filter-pill" es más específico que ".filter-pill.active" solo. */
 body.dark-mode .map-suggestion-card,
-body.dark-mode .btn-float,
-body.dark-mode .layer-panel,
 body.dark-mode .navigation-card,
 body.dark-mode .leaflet-popup-content-wrapper,
 body.dark-mode .leaflet-popup-tip {
@@ -1041,8 +1120,6 @@ body.dark-mode .filter-pill:not(.active) {
 
 body.dark-mode .search-box-container input,
 body.dark-mode .suggestion-info h4,
-body.dark-mode .layer-panel h4,
-body.dark-mode .layer-panel label,
 body.dark-mode .navigation-title-box h3 {
     color: var(--text-main, #fff) !important;
 }
