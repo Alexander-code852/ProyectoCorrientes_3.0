@@ -335,8 +335,11 @@
     font-weight: 600;
     cursor: pointer;
     /* Sombra inferior + de color, para que se lea como un botón físico
-       clickeable en vez de un rectángulo plano. */
-    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.12), 0 4px 14px rgba(10, 132, 255, 0.35);
+       clickeable en vez de un rectángulo plano. Radio/opacidad ajustados
+       (antes 14px/0.35): en modales chicos, cerca del borde redondeado
+       de .modal-card, un glow más grande se leía como si el modal mismo
+       tuviera un resplandor azul filtrándose por la esquina. */
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.12), 0 3px 10px rgba(10, 132, 255, 0.3);
     transition: transform 0.1s ease, background 0.2s ease, box-shadow 0.2s ease;
     width: 100%;
 }
@@ -716,10 +719,19 @@
 .modal-card select,
 .modal-card textarea {
     width: 100%;
+    /* Mismo padding en los 3 -incluido el textarea- para que el texto
+       arranque exactamente a la misma altura horizontal en todos. */
     padding: 14px;
     border-radius: 12px;
     border: 1px solid rgba(0, 0, 0, 0.15);
     background: #f9f9fb;
+    /* <textarea> trae "font: monospace" en la hoja de estilos por default
+       del navegador (Chrome/Firefox) -a diferencia de <input>/<select>,
+       que sí heredan la tipografía del body sin pedirlo. Sin este
+       font-family explícito, el placeholder/texto del textarea se
+       renderiza en una fuente monoespaciada que desentona con el resto
+       del formulario -exactamente el bug reportado. */
+    font-family: inherit;
     font-size: 14px;
     outline: none;
     box-sizing: border-box;
@@ -733,6 +745,7 @@
        color del trazo se ajusta en el bloque de dark-mode más abajo. */
     appearance: none;
     -webkit-appearance: none;
+    -moz-appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 14px center;
@@ -756,8 +769,8 @@
 .modal-card input:focus,
 .modal-card select:focus,
 .modal-card textarea:focus {
-    border-color: #0a84ff;
-    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+    border-color: #007bff;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
 }
 
 .modal-actions {
@@ -835,7 +848,14 @@ body.dark-mode .modal-overlay {
 body.dark-mode .modal-card {
     background: #1e1e1e !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+    /* Sombra neutra y difusa a propósito (solo negro, sin mezclar el azul
+       de otros elementos): lo que se ve como un "resplandor azul
+       sangrando" en la esquina no es esta sombra -es el glow propio del
+       botón "Guardar Lugar" (ver .ios-btn-primary), que por estar tan
+       cerca del borde redondeado del modal se leía como si viniera del
+       contenedor. Se achica ese glow más abajo en vez de tocar esta
+       sombra, que ya era neutra. */
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5) !important;
 }
 
 body.dark-mode .modal-card h3 {
@@ -854,7 +874,7 @@ body.dark-mode .modal-card textarea {
        select de abajo -volvía a "repeat" un ícono de 24x24 sin achicar,
        se veía como 5 flechas en fila-. */
     background-color: rgba(255, 255, 255, 0.05) !important;
-    border-color: rgba(255, 255, 255, 0.1) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
     color: var(--text-main, #fff) !important;
 }
 
@@ -872,7 +892,9 @@ body.dark-mode .modal-card select {
 
 body.dark-mode .ios-btn-secondary {
     background: rgba(255, 255, 255, 0.1) !important;
-    color: #f2f2f7 !important;
+    /* Texto a 0.8 de opacidad (no blanco puro): establece que es la
+       acción secundaria frente al botón primario sólido de al lado. */
+    color: rgba(255, 255, 255, 0.8) !important;
 }
 
 body.dark-mode .ios-btn-secondary:hover {
