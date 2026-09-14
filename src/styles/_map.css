@@ -564,18 +564,21 @@
     z-index: 10000 !important;
 }
 
-/* Personalización moderna para el Popup de Leaflet estilo iOS */
+/* Personalización moderna para el Popup de Leaflet: glassmorphism oscuro
+   fijo (no depende de body.dark-mode) -mismo criterio que .map-floating-
+   actions/.layer-panel/.modal-card en modo oscuro: es un elemento flotante
+   sobre el mapa, necesita contraste parejo sobre tiles de cualquier color. */
 .leaflet-popup-content-wrapper {
     padding: 0 !important;
     overflow: hidden !important;
     border-radius: 22px !important;
-    /* Sombra amplia y muy difuminada (en vez de una sombra chica y oscura):
-       da sensación de flotar sobre el mapa en vez de "bloque recortado". */
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04) !important;
-    background: rgba(255, 255, 255, 0.98) !important;
-    backdrop-filter: blur(20px) !important;
-    -webkit-backdrop-filter: blur(20px) !important;
-    border: 0.5px solid rgba(0, 0, 0, 0.08) !important;
+    /* Sombra amplia y muy difuminada: da sensación de flotar sobre el mapa
+       en vez de "bloque recortado". */
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45), 0 2px 10px rgba(0, 0, 0, 0.2) !important;
+    background: rgba(30, 30, 30, 0.85) !important;
+    backdrop-filter: blur(16px) saturate(160%) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(160%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 
 .leaflet-popup-content {
@@ -583,8 +586,9 @@
     line-height: normal !important;
 }
 
-/* Botón "X" nativo de Leaflet: círculo gris al hover en vez de solo cambiar
-   el color del texto, para que se lea claramente como clickeable. */
+/* Botón "X" nativo de Leaflet: círculo claro translúcido al hover en vez
+   de solo cambiar el color del texto, para que se lea claramente como
+   clickeable sobre el fondo oscuro. */
 .leaflet-container a.leaflet-popup-close-button {
     top: 12px !important;
     right: 12px !important;
@@ -595,19 +599,25 @@
     justify-content: center !important;
     padding: 0 !important;
     border-radius: 50% !important;
-    color: #8e8e93 !important;
+    color: rgba(255, 255, 255, 0.6) !important;
     font-size: 16px !important;
     font-weight: 700 !important;
     transition: background-color 0.15s ease, color 0.15s ease !important;
 }
 
 .leaflet-container a.leaflet-popup-close-button:hover {
-    background: rgba(0, 0, 0, 0.06) !important;
-    color: #1c1c1e !important;
+    background: rgba(255, 255, 255, 0.12) !important;
+    color: #fff !important;
 }
 
+/* El tip es un cuadrado rotado 45° que asoma debajo del wrapper (Leaflet lo
+   posiciona a propósito medio tapado); solo el borde inferior+derecho queda
+   visible como contorno del "pico" hacia el pin, por eso el borde no va en
+   los 4 lados. */
 .leaflet-popup-tip {
-    background: rgba(255, 255, 255, 0.98) !important;
+    background: rgba(30, 30, 30, 0.85) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
     /* El tip hereda su propio box-shadow por default de Leaflet, separado
        del wrapper; sin esto se ve un borde/sombra "cortada" donde se tocan. */
     box-shadow: none !important;
@@ -623,6 +633,33 @@
     padding: 22px 20px 18px 20px;
 }
 
+/* Variante "media card" (con foto, ver popupBuilder.js: imagenUrl): el
+   padding se mueve a .popup-body para que la imagen llegue justo hasta el
+   borde de la tarjeta -el redondeo de sus esquinas superiores lo da gratis
+   el overflow:hidden del .leaflet-popup-content-wrapper, no hace falta
+   redondear la imagen por separado. */
+.popup-card--con-imagen {
+    padding: 0;
+}
+
+.popup-media {
+    position: relative;
+    width: 100%;
+    height: 130px;
+    overflow: hidden;
+}
+
+.popup-media-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.popup-body {
+    padding: 16px 20px 18px 20px;
+}
+
 .popup-badge {
     display: inline-block;
     font-size: 11px;
@@ -634,23 +671,38 @@
     margin-bottom: 10px;
 }
 
-.popup-badge--azul { color: #0a6cd8; background: rgba(0, 122, 255, 0.12); }
-.popup-badge--violeta { color: #8e3bb8; background: rgba(175, 82, 222, 0.12); }
-.popup-badge--rojo { color: #d92c22; background: rgba(255, 59, 48, 0.12); }
+/* Texto brillante sobre fondo de color muy translúcido: pensado para leerse
+   bien sobre la tarjeta oscura (antes eran tonos pensados para fondo claro,
+   quedaban con muy poco contraste). */
+.popup-badge--azul { color: #5ac8fa; background: rgba(10, 132, 255, 0.18); }
+.popup-badge--violeta { color: #cf9eff; background: rgba(175, 82, 222, 0.18); }
+.popup-badge--rojo { color: #ff6961; background: rgba(255, 59, 48, 0.18); }
+
+/* Superpuesto sobre la esquina de la imagen (ver popup-card--con-imagen):
+   posición absoluta + su propio blur, para seguir siendo legible sin
+   importar qué colores tenga la foto debajo. */
+.popup-badge--sobre-imagen {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    margin-bottom: 0;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
 
 .popup-title {
     margin: 0 0 6px 0;
     font-size: 16px;
-    font-weight: 800;
-    color: #1c1c1e;
+    font-weight: 700;
+    color: #fff;
     line-height: 1.15;
 }
 
 .popup-desc {
     margin: 0 0 16px 0;
     font-size: 13px;
-    color: #58585c;
-    line-height: 1.45;
+    color: #c4c4c4;
+    line-height: 1.5;
 }
 
 .popup-desc:last-child {
@@ -660,11 +712,11 @@
 .popup-meta {
     margin: 0 0 4px 0;
     font-size: 12px;
-    color: #8e8e93;
+    color: rgba(255, 255, 255, 0.5);
 }
 
 .popup-meta--violeta {
-    color: #af52de;
+    color: #cf9eff;
     font-weight: 600;
     font-size: 13px;
 }
@@ -694,14 +746,22 @@
     filter: brightness(0.95);
 }
 
+/* inset arriba (highlight) + inset abajo (sombra): relieve sutil de botón
+   físico, además de la sombra exterior de color que ya tenían. */
 .popup-btn-primary--azul {
-    background: linear-gradient(135deg, #0a84ff, #0066e0);
-    box-shadow: 0 8px 20px rgba(10, 132, 255, 0.28);
+    background: linear-gradient(135deg, #0a94ff, #0066e0);
+    box-shadow:
+        0 8px 20px rgba(10, 132, 255, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.25),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .popup-btn-primary--violeta {
-    background: linear-gradient(135deg, #b768e0, #8e3bb8);
-    box-shadow: 0 8px 20px rgba(175, 82, 222, 0.28);
+    background: linear-gradient(135deg, #c17ae8, #8e3bb8);
+    box-shadow:
+        0 8px 20px rgba(175, 82, 222, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.25),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.15);
 }
 
 /* Fila de deep links de transporte (Uber/DiDi Moto), debajo de "Cómo
@@ -713,21 +773,26 @@
     margin-top: 8px;
 }
 
+/* Estilo "outlined" sobre fondo oscuro para las dos opciones secundarias:
+   en vez de colores sólidos de marca compitiendo entre sí (y con el azul
+   primario de arriba), un fondo casi transparente + el color de marca solo
+   en el texto/ícono -blanco para Uber, naranja para DiDi (ver variante
+   abajo)-, más discretas y elegantes que antes. */
 .popup-btn-transporte {
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    background: #1c1c1e;
+    background: rgba(255, 255, 255, 0.06);
     color: #fff;
-    border: none;
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 12px;
     padding: 10px;
     font-size: 12.5px;
     font-weight: 700;
     cursor: pointer;
-    transition: filter 0.15s ease, transform 0.15s ease;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
 .popup-btn-transporte ion-icon {
@@ -735,7 +800,7 @@
 }
 
 .popup-btn-transporte:hover {
-    filter: brightness(1.15);
+    background: rgba(255, 255, 255, 0.12);
 }
 
 .popup-btn-transporte:active {
@@ -743,7 +808,12 @@
 }
 
 .popup-btn-transporte--didi {
-    background: linear-gradient(135deg, #ff7a00, #ff9500);
+    color: #ff9f0a;
+    border-color: rgba(255, 159, 10, 0.35);
+}
+
+.popup-btn-transporte--didi:hover {
+    background: rgba(255, 159, 10, 0.12);
 }
 
 /* Marcador de ubicación del usuario (punto azul con pulso) */
@@ -1067,9 +1137,7 @@
    falta para no pisar el estado activo (ej. .filter-pill.active en azul),
    porque "body.dark-mode .filter-pill" es más específico que ".filter-pill.active" solo. */
 body.dark-mode .map-suggestion-card,
-body.dark-mode .navigation-card,
-body.dark-mode .leaflet-popup-content-wrapper,
-body.dark-mode .leaflet-popup-tip {
+body.dark-mode .navigation-card {
     background: rgba(28, 28, 30, 0.92) !important;
     border-color: rgba(255, 255, 255, 0.1) !important;
 }
@@ -1089,24 +1157,6 @@ body.dark-mode .search-box-container {
         inset 0 2px 3px rgba(255, 255, 255, 0.08),
         inset 0 -3px 6px rgba(0, 0, 0, 0.5),
         0 6px 14px rgba(0, 0, 0, 0.35) !important;
-}
-
-/* Antes el título/descripción de los popups eran inline styles con color
-   fijo (#1c1c1e/#636366): con la tarjeta oscura de arriba quedaban casi
-   invisibles. Ahora que son clases (.popup-title/.popup-desc) es trivial
-   corregirles el contraste acá. */
-body.dark-mode .popup-title {
-    color: #f2f2f7 !important;
-}
-
-body.dark-mode .popup-desc,
-body.dark-mode .popup-meta {
-    color: #a1a1a6 !important;
-}
-
-body.dark-mode .leaflet-container a.leaflet-popup-close-button:hover {
-    background: rgba(255, 255, 255, 0.1) !important;
-    color: #fff !important;
 }
 
 body.dark-mode .filter-pill:not(.active) {

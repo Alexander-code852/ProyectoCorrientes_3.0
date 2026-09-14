@@ -20,7 +20,7 @@ const ICONO_NAVEGACION = `<svg width="16" height="16" viewBox="0 0 24 24" fill="
 // color de acento como modificador de clase (ver .popup-badge--* y
 // .popup-btn-primary--* en _map.css). Evita triplicar el marcado inline que
 // tenían antes pintarLugaresEnMapa/pintarEventosEnMapa/pintarReportesEnMapa.
-export function crearPopupHTML({ badgeTexto, color = 'azul', titulo, extraHtml = '', descripcion, botonId, maxWidth = 240 }) {
+export function crearPopupHTML({ badgeTexto, color = 'azul', titulo, extraHtml = '', descripcion, botonId, maxWidth = 240, imagenUrl = null }) {
     // data-requiere-red: calcular la ruta le pega a OSRM (routingService.js),
     // así que src/utils/offlineStatus.js lo deshabilita sin conexión — a
     // diferencia del chat IA, este botón no tiene ningún modo con datos ya
@@ -52,14 +52,38 @@ export function crearPopupHTML({ badgeTexto, color = 'azul', titulo, extraHtml =
     // confiar en eso sin escapar antes de meterlo en innerHTML. extraHtml NO
     // se escapa acá: lo arma el propio código (eventoMarkers.js), no es
     // texto libre de un usuario.
-    return `
-        <div class="popup-card" style="max-width: ${maxWidth}px;">
-            <span class="popup-badge popup-badge--${color}">${escapeHTML(badgeTexto)}</span>
+    const badge = `<span class="popup-badge popup-badge--${color}${imagenUrl ? ' popup-badge--sobre-imagen' : ''}">${escapeHTML(badgeTexto)}</span>`;
+
+    // imagenUrl es opcional a propósito: hoy ningún lugar/evento/reporte
+    // de Firestore ni LUGARES_PRECARGADOS tiene una URL de foto real -este
+    // parámetro queda listo para cuando la haya, sin romper a ningún
+    // caller existente (todos siguen armando el popup "de texto" de
+    // siempre si no lo pasan).
+    const cuerpo = `
             ${titulo ? `<h4 class="popup-title">${escapeHTML(titulo)}</h4>` : ''}
             ${extraHtml}
             <p class="popup-desc">${escapeHTML(descripcion)}</p>
             ${boton}
-            ${botonesTransporte}
+            ${botonesTransporte}`;
+
+    if (imagenUrl) {
+        return `
+        <div class="popup-card popup-card--con-imagen" style="max-width: ${maxWidth}px;">
+            <div class="popup-media">
+                <img class="popup-media-img" src="${escapeHTML(imagenUrl)}" alt="" loading="lazy">
+                ${badge}
+            </div>
+            <div class="popup-body">
+                ${cuerpo}
+            </div>
+        </div>
+    `;
+    }
+
+    return `
+        <div class="popup-card" style="max-width: ${maxWidth}px;">
+            ${badge}
+            ${cuerpo}
         </div>
     `;
 }
